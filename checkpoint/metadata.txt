@@ -1,0 +1,15 @@
+[general]
+name=Checkpoint
+qgisMinimumVersion=3.28
+supportsQt6=True
+description=Undo for your map styling.
+about=History for layer order, groups, visibility, styles, filters and map view. Not a backup tool. Development scaffold: QGIS integration is not yet implemented or tested.
+version=0.1.0
+author=Alen Alimzhanov
+email=mooly612@gmail.com
+repository=https://github.com/Mooly612/checkpoint
+tracker=https://github.com/Mooly612/checkpoint/issues
+homepage=https://github.com/Mooly612/checkpoint
+tags=styling,layers,history,undo,productivity
+icon=icon.svg
+experimental=True
