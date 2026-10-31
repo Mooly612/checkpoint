@@ -1,1 +1,1 @@
-"""Snapshot comparison and history storage, independent of QGIS."""
+"""Snapshot integration, plus QGIS-independent comparison and history storage."""
