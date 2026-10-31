@@ -8,27 +8,29 @@ session. It is not a backup tool and does not protect against crashes or data lo
 
 ## Development status
 
-Milestones 1 and 2 are implemented: metadata and icon, state hashing, change
-descriptions, history storage, and QGIS state capture/restore. The pure core has
-37 passing tests. `checkpoint/core/snapshot.py` has been checked against official
-QGIS 3.28 and 4.0 API documentation but has **not been run inside QGIS**.
-This scaffold is **not yet installable in QGIS**: the plugin entry point and UI
-are part of milestone 3.
+Milestones 1 through 3 are implemented. This is an installable development build
+with a native history dock, Auto/Manual capture, and a signal-driven watcher.
+The pure core has 37 passing tests. Three additional smoke scripts passed using
+the installed QGIS 3.44.8 / Qt 5.15.18 / Python 3.12.11 runtime with offscreen Qt:
+snapshot restoration, watcher scheduling, and plugin wiring with an iface harness.
+The main QGIS desktop window has not yet been tested with the plugin enabled.
+
+[Install and test the development build](docs/install.md).
+The current panel captures and lists checkpoints. Restore actions are deliberately
+introduced with the complete pre-restore safety flow in milestone 4.
 
 The remaining milestones, in order, are:
 
-3. Watcher and minimal dock panel, with Auto/Manual mode and restore suppression.
 4. Restore flow, including a pinned pre-restore state and message-bar integration.
 5. Thumbnail rendering and the per-project two-second safety fuse.
 6. Standard QGIS Options integration and history actions in the panel.
 7. Release polish and the plugin ZIP packaging script.
 
-The target is QGIS 3.28+ and 4.x using `qgis.PyQt` only. The metadata declares
-Qt6 support as specified, but QGIS integration and compatibility have **not**
-been run or verified. The snapshot APIs are documented in
-[the milestone 2 verification notes](docs/milestone-2.md); watcher signals still
-need review in milestone 3. The installed QGIS
-version and exact symlink installation steps will be addressed at milestone 3.
+The target is QGIS 3.28+ and 4.x using `qgis.PyQt` only. Metadata declares Qt6
+support and an explicit maximum version of 4.99; QGIS 3.28 and 4.x runtime checks
+are still outstanding. Snapshot APIs and watcher signals were checked against
+the versioned 3.28 and 4.0 documentation. See the
+[milestone 2](docs/milestone-2.md) and [milestone 3](docs/milestone-3.md) notes.
 The plugin name must be checked on plugins.qgis.org before publication.
 
 ## Run the core tests
@@ -46,9 +48,11 @@ and do not import or require QGIS. They cover changes and descriptions, view-onl
 deduplication, ring eviction, pins, migration, persistence, corruption, and
 atomic-write failures.
 
-The separate `tests/qgis_smoke.py` script is an opt-in real-QGIS check, not part
-of the passing pytest suite. It has not been executed here. Its procedure and
-the remaining visual checks are in [the verification notes](docs/milestone-2.md).
+The separate `tests/qgis_smoke.py`, `tests/qgis_watcher_smoke.py`, and
+`tests/qgis_plugin_smoke.py` scripts are real-QGIS checks, not pytest tests. They
+passed on 3.44.8. The plugin script substitutes only the desktop iface surface,
+using actual QGIS projects, providers, canvas, message bar, and Qt widgets. It
+checks project switching without modifying the user's open project.
 
 ## Plain-data contract
 
@@ -99,6 +103,11 @@ leave the in-memory session intact. Merging existing session histories retains
 their distinct records, including pins; deduplication applies when appending
 a newly captured state.
 
+The plugin pauses capture on `fileNameChanged` and commits migration after
+`projectSaved` confirms the save. Opening a project also emits filename changes,
+so `iface.projectRead` instead starts a separate history session. A failed save
+after a path change leaves capture paused; completing the save resumes it.
+
 ## Capture and restore API
 
 `snapshot.capture(project, canvas)` returns the plain snapshot above, including
@@ -125,8 +134,8 @@ restored in `finally`. Style XML is checked before any mutation. QGIS's
 `writeToLayer` does not return an import-success flag, so provider-specific
 style behavior still requires runtime testing. This low-level API does not
 implement transactional rollback or record history: the controller must save
-the pinned pre-restore state and suppress the watcher before calling it. Those
-controller responsibilities belong to milestones 3 and 4.
+the pinned pre-restore state and suppress the watcher before calling it. The
+watcher guard is implemented; the user-facing restore controller is milestone 4.
 
 View restoration applies the saved center/extent and then the saved scale,
 ignoring the canvas scale lock for that operation. If the canvas size has

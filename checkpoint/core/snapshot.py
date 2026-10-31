@@ -1,6 +1,6 @@
 """Translate live QGIS state to plain data and back on the GUI thread.
 
-QGIS-dependent code: reviewed against 3.28/4.0 APIs, not runtime-tested yet.
+APIs reviewed against 3.28/4.0; smoke-tested on QGIS 3.44.8 / Qt 5.15.18.
 The caller owns watcher suppression and before/after restore history entries.
 """
 

@@ -1,9 +1,10 @@
 [general]
 name=Checkpoint
 qgisMinimumVersion=3.28
+qgisMaximumVersion=4.99
 supportsQt6=True
 description=Undo for your map styling.
-about=History for layer order, groups, visibility, styles, filters and map view. Not a backup tool. In development: capture and restore implemented but not tested in QGIS; plugin UI and entry point are still pending.
+about=History for layer order, groups, visibility, styles, filters and map view. Not a backup tool. Experimental development build: Auto/Manual capture and history panel available; user-facing restore, thumbnails and settings are pending.
 version=0.1.0
 author=Alen Alimzhanov
 email=mooly612@gmail.com

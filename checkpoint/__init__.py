@@ -1,5 +1,7 @@
-"""Checkpoint: undo for your map styling.
+"""Checkpoint: undo for your map styling. Core imports remain QGIS-free."""
 
-The QGIS entry point will be added with the integration milestone.
-Importing the pure Python core does not load QGIS.
-"""
+
+def classFactory(iface):
+    """QGIS plugin entry point, imported only when the plugin is enabled."""
+    from .plugin import CheckpointPlugin
+    return CheckpointPlugin(iface)

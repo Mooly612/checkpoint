@@ -1,7 +1,7 @@
 """Run explicitly in the QGIS Python console; not a headless pytest test.
 
 Uses a separate project and canvas. Does not modify the user's open project.
-This script has not yet been executed against a real QGIS installation.
+Passed on QGIS 3.44.8 / Qt 5.15.18 using the offscreen Qt platform.
 """
 
 from copy import deepcopy

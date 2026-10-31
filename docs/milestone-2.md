@@ -2,10 +2,11 @@
 
 ## Status
 
-Implemented `checkpoint/core/snapshot.py`. It has not been imported or executed
-with a real QGIS runtime. The 37 passing pytest tests cover only `differ` and
-`store`; syntax compilation does not validate SIP bindings or live QGIS behavior.
-The real-QGIS smoke script below is also unexecuted.
+Implemented `checkpoint/core/snapshot.py`. During milestone 3, the smoke script
+below passed against the installed QGIS 3.44.8 / Qt 5.15.18 runtime on the
+offscreen Qt platform. The 37 pytest tests still cover only `differ` and `store`.
+QGIS 3.28 and 4.x runtime checks and the broader visual/provider checks below
+remain outstanding.
 
 ## API review
 

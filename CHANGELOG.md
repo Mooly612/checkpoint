@@ -23,6 +23,20 @@
   removing old nodes to avoid layer registry deletion.
 - Added API references and an opt-in real-QGIS smoke script, not yet executed.
 
-The pure core passes 37 tests. Snapshot integration is not runtime-tested in
-QGIS. Watcher, UI, restore history orchestration, thumbnails, settings, and
-release packaging are still pending. This is not an installable plugin release.
+### Milestone 3
+
+- Added the plugin entry point, toolbar/menu toggle, and native history dock.
+- Added Auto/Manual mode, adjustable minimum gap, and manual save in both modes.
+- Added one signal-driven scheduling timer with two-second debounce and no
+  periodic snapshots. Pan/zoom events are not watched.
+- Added nested restore suppression through the following event-loop turn.
+- Connected new layers and disconnected removed layers and unloaded plugins.
+- Added project lifecycle handling, first-save migration, and isolated histories
+  after Save As or opening another project.
+- Added an explicit maximum QGIS version of 4.99 and exact macOS install steps.
+- Ran all 37 pure-core tests and three real-QGIS smoke scripts on QGIS 3.44.8,
+  Qt 5.15.18, Python 3.12.11 using offscreen Qt.
+
+This is now an installable development build. Restore history orchestration,
+thumbnails, settings, and release packaging remain pending. Testing in the real
+QGIS main window, plus QGIS 3.28 and Qt6/4.x runtime checks, is still required.
