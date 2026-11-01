@@ -104,3 +104,10 @@ per-project fuse, retry, and asynchronous cancellation during unload/project clo
 The timeout test uses deliberately stalled jobs with a real Qt timer; ordinary
 map tests use actual QGIS render jobs. Qt panel/dialog screenshots were inspected.
 QGIS 3.28 and QGIS 4/Qt6 runtime testing remains outstanding.
+
+## Performance correction after desktop testing
+
+Style/filter/visibility comparisons clone only affected layers, omitting unrelated
+providers and labeling that omission in the preview. Order/group, blending, and
+layer-opacity changes retain the full stack because context affects their result.
+The two-second fuse remains; a slow affected provider can still exceed it.

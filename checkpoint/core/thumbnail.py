@@ -3,6 +3,7 @@
 import base64
 from collections import defaultdict
 from time import monotonic
+from xml.etree import ElementTree
 
 from qgis.core import (
     QgsCoordinateTransform, QgsFeatureRequest, QgsMapLayerStyle, QgsMapSettings,
@@ -90,7 +91,20 @@ class PreviewTask(QObject):
     def _prepare(self):
         live = self.project.mapLayers()
         affected = changed_ids(self.before, self.after)
-        notes = []
+        # Style/filter/visibility comparisons do not need expensive unrelated
+        # providers. Order/group changes still require the complete stack.
+        focused = bool(affected) and self.before is not None and "layer order / groups" not in self.payload["summary"]
+        if focused:
+            for key in affected:
+                old = self.before["layers"].get(key)
+                new = self.after["layers"].get(key)
+                if old and new:
+                    old_xml, new_xml = ElementTree.fromstring(old["style"]), ElementTree.fromstring(new["style"])
+                    if any(old_xml.findtext(tag) != new_xml.findtext(tag)
+                           for tag in ("blendMode", "featureBlendMode", "layerOpacity")):
+                        focused = False
+                        break
+        notes = ["Changed layers only; unrelated context omitted"] if focused else []
         self.payload["affected"] = [
             (self.after["layers"].get(key) or self.before["layers"][key])["name"] for key in affected]
         if self.before is not None:
@@ -103,6 +117,8 @@ class PreviewTask(QObject):
             if state is None:
                 continue
             for key, saved in state["layers"].items():
+                if focused and key not in affected:
+                    continue
                 self._check_time()
                 source = live.get(key)
                 if source is None:
