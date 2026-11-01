@@ -152,3 +152,45 @@ Author: Alen Alimzhanov, <mooly612@gmail.com>.
 
 Copyright (C) 2026 Alen Alimzhanov. Licensed under GNU GPL version 2 or later
 (`GPL-2.0-or-later`). See [LICENSE](LICENSE).
+
+## Product walkthrough
+
+These are real offscreen Qt/QGIS screenshots from the preview tests, not mockups.
+They show the milestone-5 preview UI; the current dock additionally has history
+management and Settings buttons. Your QGIS theme may look different.
+
+![History with before/after symbol samples](docs/images/history.png)
+
+![Saved map comparison](docs/images/comparison.png)
+
+### What exactly does Restore selected checkpoint do?
+
+Suppose you saved **A** with blue roads and visible buildings. You then changed
+roads to red, hid buildings, and moved their group. Select **A** and press Restore:
+
+1. The current red-road state is saved as pinned **before restore**.
+2. Existing layers return to A's saved styles, filters, tree order, visibility,
+   and expansion. Saved extent/scale return if Restore map view is enabled.
+3. The actual result is appended as another history entry.
+
+To undo this operation, select **before restore** and press Restore again.
+This affects the saved state of all matching layers, not just the layer named in
+one row's change description. It does not undo geometry/attribute edits, recreate
+deleted layers, reopen a project file, or restore layouts/CRS. A map preview is
+only an illustration; clicking it never applies the state.
+
+### Concrete test examples
+
+| Scenario | Expected result | Automated coverage |
+| --- | --- | --- |
+| Save twice without changing styling | One entry; duplicate message | Store and plugin tests |
+| Pan across the map | No automatic checkpoint | Plugin tests |
+| Restore while disk write fails | Map untouched if safety save fails | Restore tests |
+| Delete a layer, restore old state | Deleted layer skipped with notice | Snapshot and Restore tests |
+| Sparse point in a large project | Symbol sample and focused comparison | Preview tests |
+| Renderer exceeds two seconds | Nonblocking cancellation and project fuse | Preview tests with stalled jobs |
+| Cancel Delete | Record remains | Settings tests |
+| Build twice | Identical ZIP bytes | Package tests |
+
+See [the honest usability assessment](docs/usability.md) for alternatives and
+current weaknesses. Automated checks do not establish usability for all projects.
