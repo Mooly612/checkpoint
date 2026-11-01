@@ -2,220 +2,153 @@
 
 *Undo for your map styling.*
 
-Checkpoint is a QGIS plugin in development. It records the appearance of
-the Layers panel and lets you restore an earlier styling state inside the open
-session. It is not a backup tool and does not protect against crashes or data loss.
+Checkpoint records how your QGIS map looks and restores earlier styling states
+inside the open session. It captures layer order, groups, visibility, expansion,
+full layer styles, filters, and map view. **It is not a backup tool** and does not
+protect project files or source data against crashes or loss.
 
-## Development status
+## Install
 
-Milestones 1 through 6 are implemented. This development build provides a native
-history dock, Auto/Manual capture, and safe user-facing Restore. The pure core has
-43 passing tests. Five smoke scripts passed on QGIS 3.44.8 / Qt 5.15.18 /
-Python 3.12.11 with offscreen Qt, including the full restore controller through
-actual widgets and a small iface harness. The user has also tested capture in
-the desktop app; the new Restore flow still needs that interactive check.
+Download or build `checkpoint.zip`. In QGIS, open **Plugins → Manage and Install
+Plugins → Install from ZIP**, select the archive, then enable **Checkpoint**.
+The history dock appears on the right; its toolbar/menu action toggles the dock.
+No extra Python packages are required.
 
-[Install and test the development build](docs/install.md).
-Select a history entry and click **Restore selected checkpoint**. Selecting a row
-alone never restores it. The current state is first saved as a pinned
-**before restore** checkpoint; restore that entry to undo the operation.
+Already using a development symlink? Restart QGIS to load updates from the linked
+source. Do not install the ZIP over that symlink. Use a separate QGIS profile to
+try the packaged build. See [installation and testing](docs/install.md).
 
-The remaining milestones, in order, are:
+## Use
 
-7. Release polish and the plugin ZIP packaging script.
+1. Click **Save checkpoint** before editing to establish an initial state.
+2. Change styling, filters, visibility, or layer/group order. In **Auto**, changes
+   are captured after about two seconds of quiet and the chosen minimum gap.
+   **Manual** disables automatic capture; Save checkpoint works in either mode.
+3. Click a history row to inspect saved before/after previews. Click **Restore
+   selected checkpoint** to apply it. Selection alone never restores anything.
+4. Every Restore first pins a **before restore** checkpoint. Restore that entry to
+   undo the operation. The result is a new unpinned entry; later history is retained.
+5. Use **Pin / Unpin**, **Rename**, or **Delete** on a selected record. Deletion asks
+   for confirmation, including for pinned records. Empty names restore the generated
+   description.
 
-The target is QGIS 3.28+ and 4.x using `qgis.PyQt` only. Metadata declares Qt6
-support and an explicit maximum version of 4.99; QGIS 3.28 and 4.x runtime checks
-are still outstanding. Snapshot APIs and watcher signals were checked against
-the versioned 3.28 and 4.0 documentation. See the
-[milestone 2](docs/milestone-2.md), [milestone 3](docs/milestone-3.md), and
-[milestone 4](docs/milestone-4.md) notes. See [milestone 5](docs/milestone-5.md)
-for preview behavior, resource limits, API references, and tests.
-The plugin name must be checked on plugins.qgis.org before publication.
+Auto and Manual skip unchanged styling, including pan/zoom-only changes. Explicit
+Restore events are the exception: both before and result records are saved even
+when styling matches, preserving the exact map view.
 
-## Run the core tests
+## Settings
 
-From this repository, with Python 3.10 or newer for the development tools:
+Use **Settings…** in the dock and select **Checkpoint** in standard QGIS Options:
+
+| Option | Default | Behavior |
+| --- | --- | --- |
+| Save previews | On | Shared with the panel's Previews checkbox |
+| Restore map view | On | Apply saved extent and scale during Restore |
+| Unpinned history limit | 20 | Oldest unpinned entries are evicted; lowering applies immediately |
+| Default automatic interval | 60 seconds | Minimum gap after changes, also applied to the current panel |
+
+Pinned records never expire automatically. Before-restore records can accumulate;
+unpin or delete them when no longer needed. Closing the dock does not disable Auto.
+
+## Previews
+
+Rows show small QGIS symbol samples **before → after**, with up to two changed
+legend items and a count of the remainder. Dates appear once per day. Filter,
+visibility, order, and label-only changes use descriptions and maps rather than
+misleading identical symbol samples.
+
+The comparison uses the same extent for both sides. It focuses on a representative
+feature in an affected vector layer, making sparse points visible even in a large
+project. Style/filter/visibility previews omit unrelated layers for speed. Order,
+group, blending, and layer-opacity comparisons retain the full layer stack.
+The note identifies the focus; widely separated changes may not all fit the view.
+This is not detection of exactly which geographic features changed.
+
+Images are captured once, using data available at checkpoint creation. Before
+images survive eviction of the preceding entry. Opening an old entry never
+rerenders against changed source data. Old checkpoints without previews stay
+explicitly unavailable. Turning Previews off hides samples, cancels pending work,
+and renders/stores no new images; existing images remain in history.
+
+A two-second budget disables further rendering for a heavy project. Toggle
+**Previews off/on** to reset that project's fuse, then create a new checkpoint.
+Existing empty previews are not regenerated. Synchronous provider cloning and
+feature access cannot be interrupted mid-call, so slow remote sources can still
+delay preparation. WMS/XYZ previews may be partial or blank.
+
+## Storage and limitations
+
+- History lives under `QgsApplication.qgisSettingsDirPath()/checkpoint/`, keyed by
+  the absolute project path. Nothing is stored inside or beside the `.qgz`.
+- An unsaved project's history stays in memory until its first successful save.
+  Closing it first loses that history. Renaming, moving, or Save As to a new path
+  does not carry over an already-saved project's history.
+- Deleted layers are skipped with a message. Layers added after the target snapshot
+  keep their styling. A shared parent group's visibility still affects its children.
+- Memory/scratch features and other source data are not versioned. Deleted layers
+  cannot be recreated, including memory layers whose data disappeared with the session.
+- If the safety checkpoint cannot be saved, Restore does not change the map.
+  Provider errors can leave partial changes; the pinned safety record remains
+  available. If saving the result fails, the message explains that the restored map
+  is applied but not recorded. There is no automatic rollback after provider errors.
+- CRS, project settings, custom layer order, Map Themes, and data versioning are
+  outside this release. No CRS transformation is applied when restoring map view.
+- No telemetry or cloud sync is implemented. QGIS providers may still access their
+  configured remote sources when rendering previews. Local history contains style
+  XML, filters, layer names, and optional images; treat it as project-related data.
+
+## Release and validation
+
+**0.1.0 is an experimental local release build. All seven implementation milestones
+are complete.** It has not been published to GitHub Releases or the QGIS catalog.
+
+Target: QGIS 3.28+ and 4.x, with Qt imports exclusively through `qgis.PyQt`.
+Runtime validation: **QGIS 3.44.8 / Qt 5.15.18 / Python 3.12.11 on macOS**, using
+an isolated offscreen profile. QGIS 3.28 and QGIS 4/Qt6 runtime testing remains
+outstanding. Provider-specific behavior still needs testing with real projects.
+The heavy-project fix has automated coverage but is not yet confirmed on the
+user's affected project.
+
+44 pure-Python tests cover hashing, descriptions, retention, atomic persistence,
+previews, and packaging. Six real-QGIS scripts cover snapshots, watcher timing,
+plugin lifecycle, Restore, previews, and settings/history actions. Release checks
+also run these scripts against the extracted ZIP, not just the working tree.
+
+A catalog search on 2026-11-02 found no indexed QGIS plugin named Checkpoint.
+This is not a name reservation or approval; recheck the
+[QGIS plugin catalog](https://plugins.qgis.org/plugins/) before publishing.
+
+## Build and test
 
 ```sh
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements-dev.txt
 .venv/bin/python -m pytest -q
+python3 scripts/package.py
 ```
 
-Runtime core code uses only the Python standard library. Tests require pytest
-and do not import or require QGIS. They cover changes and descriptions, view-only
-deduplication, ring eviction, pins, migration, persistence, corruption, and
-atomic-write failures.
+The reproducible archive is `dist/checkpoint.zip`, with a SHA-256 sidecar. It has
+one top-level `checkpoint/` directory containing runtime code, metadata, icon,
+license, and documentation. Tests, caches, source data, and development tools are
+excluded. The packager validates metadata, Python syntax, and ZIP integrity.
 
-The separate `tests/qgis_smoke.py`, `tests/qgis_watcher_smoke.py`,
-`tests/qgis_plugin_smoke.py`, `tests/qgis_restore_smoke.py`, and
-`tests/qgis_thumbnail_smoke.py` scripts are real-QGIS checks, not pytest tests. They
-passed on 3.44.8. The plugin script substitutes only the desktop iface surface,
-using actual QGIS projects, providers, canvas, message bar, and Qt widgets. It
-checks project switching without modifying the user's open project.
+With a Python environment that can import QGIS:
 
-## Plain-data contract
-
-`checkpoint/core/differ.py` consumes snapshots with this structure:
-
-```python
-{
-    "tree": {
-        "type": "group", "name": "", "visible": True, "expanded": True,
-        "children": [
-            {"type": "layer", "id": "layer-id", "visible": True, "expanded": False}
-        ],
-    },
-    "layers": {
-        "layer-id": {"name": "Roads", "style": "<qgis>...</qgis>", "filter": ""}
-    },
-    "extent": [0.0, 0.0, 100.0, 100.0],
-    "scale": 1000.0,
-}
+```sh
+python3 scripts/run_qgis_checks.py --package dist/checkpoint.zip
 ```
 
-Groups can contain nested groups and layer nodes. `visible` is the node's own
-checkbox state. Layer display names live in the layer dictionary, not tree
-nodes. SHA-256 hashes cover the tree, each layer's style XML, and each filter.
-Extent, scale, and display names do not participate in the state hash. Group
-names, child order, visibility, and expanded state do participate.
+On this Mac use `/Applications/QGIS.app/Contents/MacOS/python` instead of `python3`.
+The runner creates a disposable profile and never opens the user's live project.
 
-`HistoryStore(root, project_path="", limit=20)` returns detached plain records.
-Its `append` method returns a new record or `None` when its styling hash matches
-the latest record. Returning to an older state after an intervening change is
-recorded. Records contain UTC timestamps, IDs, component and state hashes,
-descriptions, names, pin flags, and the complete plain snapshot.
+[Architecture](docs/architecture.md) · [Preview implementation](docs/milestone-5.md) ·
+[Changelog](CHANGELOG.md)
 
-Only unpinned records count toward the buffer limit. Pins survive automatic
-eviction; users can explicitly delete them. The storage API already supports
-pinning, renaming, deleting, and changing the limit for the future UI.
-
-Saved history uses an atomic JSON replacement at
-`root/<SHA-256 of absolute project path>/history.json`. The integration will
-supply `QgsApplication.qgisSettingsDirPath()/checkpoint/` as `root`. No project
-file or data source is modified. Malformed history raises `HistoryError` and is
-not silently discarded or overwritten.
-
-Unsaved projects use isolated temporary keys and remain entirely in memory.
-`migrate(project_path)` writes them to disk on first save, retaining any history
-already present at that path and applying the unpinned limit. Failed writes
-leave the in-memory session intact. Merging existing session histories retains
-their distinct records, including pins; deduplication applies when appending
-a newly captured state.
-
-The plugin pauses capture on `fileNameChanged` and commits migration after
-`projectSaved` confirms the save. Opening a project also emits filename changes,
-so `iface.projectRead` instead starts a separate history session. A failed save
-after a path change leaves capture paused; completing the save resumes it.
-
-## Capture and restore API
-
-`snapshot.capture(project, canvas)` returns the plain snapshot above, including
-full `QgsMapLayerStyle` XML for every registered layer. Vector and point-cloud
-layers supply `subsetString`; other layer types use an empty filter value.
-
-`snapshot.restore(project, canvas, state, restore_view=True)` restores existing
-layers by ID and returns a list of plain notice strings. Deleted layers are
-skipped. A rejected provider filter is reported. The caller can disable view
-restoration without changing the saved extent or scale. Both functions require
-the QGIS GUI thread.
-
-The replacement tree is prepared before changing the live project. All new
-nodes are inserted before old nodes are removed, so live layers retain tree
-references throughout the replacement. Later layers retain their styles,
-filters, local checkboxes, and group paths. Their sibling positions are used as
-insertion points among the restored nodes. Group matching uses parent path,
-name, and occurrence among same-named siblings, since groups have no layer IDs.
-Restoring a shared parent's visibility naturally affects all its descendants.
-QGIS 4 custom nodes are preserved but are not captured or hashed.
-
-Canvas rendering is paused during application and its prior frozen state is
-restored in `finally`. Style XML is checked before any mutation. QGIS's
-`writeToLayer` does not return an import-success flag, so provider-specific
-style behavior still requires runtime testing. This low-level API does not
-implement transactional rollback or record history: the controller must save
-the pinned pre-restore state and suppress the watcher before calling it. The
-controller now implements this safety flow and watcher guard.
-
-View restoration applies the saved center/extent and then the saved scale,
-ignoring the canvas scale lock for that operation. If the canvas size has
-changed, its final extent can differ to accommodate the saved scale. No CRS
-transformation is attempted because CRS history is outside v1.
-
-## Change-focused previews
-
-**Previews** is on by default. New history rows show small native QGIS symbol
-samples, **before → after**, with up to two changed legend items and a remainder
-count. Dates appear once per day. Click an entry to open its saved before/after
-maps; selection never restores the map. Use the separate Restore button for that.
-
-Maps focus on a representative feature in an affected vector layer and preserve
-surrounding visible layers. Both sides share an extent. For widely separated
-changes, this view may only show the named focus layer's neighborhood. It is not
-exact changed-feature detection. Filter, visibility, order, and label changes use
-text/map context instead of misleading identical symbol swatches.
-
-Previews are captured once and stored with their record. Both styles use data
-available at capture time; feature history is not reconstructed. Old checkpoints
-without images stay explicitly unavailable. Disabling Previews hides samples,
-cancels pending work, and renders/stores no new images. Existing artifacts remain.
-
-A two-second render budget automatically disables previews for a heavy project.
-The panel explains the status; toggle Previews off/on to retry. Synchronous provider
-preparation cannot be interrupted mid-call, so slow remote sources can still delay
-preparation. WMS/XYZ images can be partial or blank. The same preview preference is available in standard QGIS Options.
-
-## Restore safety
-
-Restore creates two distinct records, even when their styling hashes match:
-a pinned `before restore` entry with the exact current view, and an unpinned
-result with the actual captured state after applying the target. This is an
-explicit exception to deduplication for Restore only; Auto and Manual still skip
-unchanged styling. Old records are not rewritten and later history is not
-truncated. The normal unpinned ring limit still applies to new result entries.
-
-If saving the safety entry fails, nothing is applied. If application fails partway
-through, the safety entry remains available and the message bar explains how to
-recover. If recording the result fails, the restored map remains in place and the
-message explicitly reports that the result was not recorded. There is no automatic
-rollback on provider errors. Missing layers and rejected filters are reported in
-the message bar and retained in the result description.
-
-View restoration is on by default and can be disabled in QGIS Options. Safety
-records are pinned and can accumulate; use Delete or Pin/Unpin to manage them. Unsaved-project history is still only
-in memory and is lost when that project closes.
-
-## v1 behavior and limitations
-
-- Auto mode responds to changes with about two seconds of debounce. Its interval
-  is a minimum gap, not a second periodic trigger. Manual save works in both modes.
-- Restore matches layer IDs. Deleted layers are skipped with a notice. Layers
-  added after a snapshot are left untouched.
-- Every restore preserves a pinned before-restore state and records its result.
-- Renaming or moving a project file loses access to its history because the
-  storage key is the absolute project path. History is never stored inside a
-  `.qgz` or alongside the project file.
-- Memory and scratch layer features are not copied. A deleted memory layer cannot
-  be recovered, and history cannot recreate its data after the session ends.
-- Thumbnails of WMS/XYZ layers may be blank or partial.
-- CRS, project settings, custom layer order, Map Themes, and data versioning
-  are outside v1.
-
-## Project
+## Project and license
 
 Author: Alen Alimzhanov, <mooly612@gmail.com>.
-
 [Repository](https://github.com/Mooly612/checkpoint) ·
-[Issue tracker](https://github.com/Mooly612/checkpoint/issues)
+[Issues](https://github.com/Mooly612/checkpoint/issues).
 
-Copyright (C) 2026 Alen Alimzhanov. Licensed under the GNU General Public License,
-version 2 or, at your option, any later version (`GPL-2.0-or-later`). See `LICENSE`.
-
-## Settings and history actions
-
-Use **Settings…** in the dock, then select **Checkpoint** in standard QGIS Options.
-Configure previews, map-view restoration, buffer size, and the default interval.
-Lowering the buffer immediately removes excess unpinned entries. Select a record
-to Pin/Unpin, Rename, or Delete; deletion asks for confirmation.
-See [milestone 6](docs/milestone-6.md) for details.
+Copyright (C) 2026 Alen Alimzhanov. Licensed under GNU GPL version 2 or later
+(`GPL-2.0-or-later`). See [LICENSE](LICENSE).

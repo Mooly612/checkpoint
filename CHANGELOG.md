@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 (unreleased)
+## 0.1.0 (2026-11-02, experimental local build)
 
 ### Milestone 1
 
@@ -21,7 +21,7 @@
 - Preserved later layers and skipped deleted IDs with plain notices for the UI.
 - Prepared replacement trees before mutation and inserted new references before
   removing old nodes to avoid layer registry deletion.
-- Added API references and an opt-in real-QGIS smoke script, not yet executed.
+- Added API references and an opt-in real-QGIS smoke script; executed from milestone 3 onward.
 
 ### Milestone 3
 
@@ -61,9 +61,6 @@
 - Added real-QGIS coverage for rendering, symbol samples, lifecycle and timeout,
   plus pure-core artifact migration/eviction and storage-failure tests.
 
-Settings and release packaging remain pending. QGIS 3.28 and Qt6/4.x runtime
-checks are still required.
-
 ### Milestone 6
 
 - Added a standard QGIS Options page for previews, map-view restoration, unpinned
@@ -72,3 +69,13 @@ checks are still required.
   with an explicit pinned-record warning and No as the default.
 - Registered/unregistered the Options factory with plugin lifecycle and added
   actual QGIS widget checks for applying options and editing history.
+
+### Milestone 7
+
+- Updated release metadata, user documentation, installation instructions, and limitations.
+- Added a deterministic ZIP packager with syntax, metadata, and archive checks.
+- Included the GPL license, SVG icon, and documentation in the installable package.
+- Added package tests and a disposable-profile QGIS runner for source and extracted ZIP.
+- Searched the QGIS catalog for the plugin name; no matching indexed name was found.
+- Kept experimental status: QGIS 3.28 and QGIS 4/Qt6 runtime checks remain outstanding.
+- No catalog upload or remote release publication was performed.
