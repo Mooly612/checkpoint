@@ -35,6 +35,7 @@ def run():
         try:
             plugin.initGui()
             panel = plugin.panel
+            panel.previews.setChecked(False)
             assert not panel.restore_button.isEnabled()
             panel.mode.setCurrentText("Manual")
             layer = QgsVectorLayer("Point?crs=EPSG:4326", "Points", "memory")

@@ -2,11 +2,14 @@
 
 from datetime import datetime
 
-from qgis.PyQt.QtCore import Qt
+from qgis.PyQt.QtCore import QSize, Qt
 from qgis.PyQt.QtWidgets import (
-    QComboBox, QDockWidget, QFormLayout, QLabel, QListWidget, QListWidgetItem,
+    QCheckBox, QComboBox, QDockWidget, QFormLayout, QLabel, QListWidget, QListWidgetItem,
     QPushButton, QSpinBox, QVBoxLayout, QWidget,
 )
+
+
+from .preview import PreviewDialog, sample_icon
 
 
 class HistoryPanel(QDockWidget):
@@ -29,12 +32,24 @@ class HistoryPanel(QDockWidget):
         layout.addLayout(form)
         self.save_button = QPushButton("Save checkpoint", body)
         layout.addWidget(self.save_button)
+        self.previews = QCheckBox("Previews", body)
+        self.previews.setToolTip("Save symbol samples and before/after maps for new checkpoints.")
+        layout.addWidget(self.previews)
+        self.preview_status = QLabel(body)
+        self.preview_status.setWordWrap(True)
+        self.preview_status.setTextFormat(Qt.TextFormat.PlainText)
+        layout.addWidget(self.preview_status)
         self.status = QLabel(body)
         self.status.setTextFormat(Qt.TextFormat.PlainText)
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
         self.history = QListWidget(body)
-        self.history.setWordWrap(True)
+        self.history.setWordWrap(False)
+        self.history.setIconSize(QSize(76, 60))
+        self.history.itemClicked.connect(self._open_preview)
+        self.history.itemActivated.connect(self._open_preview)
+        self._records = {}
+        self._dialog = None
         self.history.setAccessibleName("Checkpoint history")
         layout.addWidget(self.history)
         self.restore_button = QPushButton("Restore selected checkpoint", body)
@@ -60,19 +75,50 @@ class HistoryPanel(QDockWidget):
     def _selection_changed(self, *args):
         self.restore_button.setEnabled(self._available and self.selected_id() is not None)
 
+    def _open_preview(self, item):
+        record = self._records.get(item.data(Qt.ItemDataRole.UserRole))
+        if record is None or not self.previews.isChecked():
+            return
+        if self._dialog is not None:
+            self._dialog.close()
+        self._dialog = PreviewDialog(record, self)
+        dialog = self._dialog
+        dialog.destroyed.connect(lambda: self._dialog_closed(dialog))
+        self._dialog.show()
+
+    def _dialog_closed(self, dialog):
+        if self._dialog is dialog:
+            self._dialog = None
+
     def set_records(self, records: list):
         current = self.history.currentItem()
         selected = current.data(Qt.ItemDataRole.UserRole) if current is not None else None
         self.history.clear()
+        self._records = {r["id"]: r for r in records}
+        if self._dialog is not None and self._dialog.record_id in self._records:
+            self._dialog.set_record(self._records[self._dialog.record_id])
+        day = None
         for record in reversed(records):
             try:
-                stamp = datetime.fromisoformat(record["created_at"]).astimezone().strftime("%Y-%m-%d %H:%M:%S")
+                date = datetime.fromisoformat(record["created_at"]).astimezone()
+                stamp = date.strftime("%H:%M:%S")
+                record_day = date.strftime("%Y-%m-%d")
             except ValueError:
                 stamp = record["created_at"]
+                record_day = ""
             title = record["name"] or record["description"]
             prefix = "[Pinned] " if record["pinned"] else ""
-            item = QListWidgetItem(f"{stamp}\n{prefix}{title}", self.history)
+            heading = record_day + "\n" if record_day != day else ""
+            day = record_day
+            preview = record.get("preview", {})
+            more = f" (+{preview['more']} symbols)" if preview.get("more") else ""
+            item = QListWidgetItem(f"{heading}{stamp}  {prefix}{title}{more}", self.history)
+            if self.previews.isChecked():
+                item.setIcon(sample_icon(preview))
             item.setData(Qt.ItemDataRole.UserRole, record["id"])
-            item.setToolTip(record["description"])
+            details = "\n".join(s["label"] for s in preview.get("samples", []))
+            item.setToolTip(record["description"] + "\nBefore → After\n" + details
+                            + "\n" + preview.get("status", "No saved preview")
+                            + "\nClick to open saved maps. Restore uses the separate button.")
             if record["id"] == selected:
                 self.history.setCurrentItem(item)

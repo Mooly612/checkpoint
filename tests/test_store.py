@@ -225,3 +225,34 @@ def test_failed_restore_record_write_preserves_history(tmp_path, variant, monkey
         store.append_restore(variant(2), before=before)
     assert store.records == old_records
     assert store.path.read_bytes() == old_file
+
+
+def test_preview_survives_migration_and_predecessor_eviction(tmp_path, variant):
+    store = HistoryStore(tmp_path / "history", limit=1)
+    store.append(variant(1))
+    record = store.append(variant(2))
+    preview = {"samples": [{"label": "Roads", "before": "old", "after": "new"}],
+               "maps": {"before": "before-jpeg", "after": "after-jpeg"}}
+    store.set_preview(record["id"], preview)
+    preview["maps"].clear()
+    assert store.records[0]["preview"]["maps"]["before"] == "before-jpeg"
+    assert store.records[0]["state_hash"] == record["state_hash"]
+    store.migrate(str(tmp_path / "map.qgz"))
+    assert HistoryStore(store.root, str(tmp_path / "map.qgz")).records == store.records
+    store.append(variant(3))
+    assert "preview" not in store.records[0]
+    with pytest.raises(KeyError):
+        store.set_preview(record["id"], {})
+
+
+def test_preview_write_failure_does_not_damage_checkpoint(tmp_path, state, monkeypatch):
+    store = HistoryStore(tmp_path, "/projects/map.qgz")
+    record = store.append(state)
+    old_file = store.path.read_bytes()
+    def fail(*args):
+        raise OSError("Disk full")
+    monkeypatch.setattr("checkpoint.core.store.os.replace", fail)
+    with pytest.raises(OSError):
+        store.set_preview(record["id"], {"maps": {"after": "jpeg"}})
+    assert store.records == [record]
+    assert store.path.read_bytes() == old_file

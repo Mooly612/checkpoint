@@ -137,6 +137,10 @@ class HistoryStore:
         record.update(changes)
         self._commit(self._trim(records, self.limit))
 
+    def set_preview(self, record_id: str, preview: dict):
+        """Keep artifacts with their record, including through migration and eviction."""
+        self._update(record_id, preview=deepcopy(preview))
+
     def set_pinned(self, record_id: str, pinned: bool):
         self._update(record_id, pinned=bool(pinned))
 

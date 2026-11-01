@@ -48,5 +48,18 @@
 - Added core tests and real-QGIS controller checks for restore/undo, unchanged
   restore, exact view recovery, missing layers, and before/result write failures.
 
-Thumbnails, settings, and release packaging remain pending. QGIS 3.28 and
-Qt6/4.x runtime checks are still required.
+### Milestone 5
+
+- Added compact before/after symbol samples, changed-category counts, and daily dates.
+- Added click-open saved map comparisons at matching extents, focused on a
+  representative changed-layer feature with visible context.
+- Added a persistent Previews checkbox; disabled mode renders/stores no images.
+- Saved immutable preview artifacts inside history records, including before images.
+- Added detached layer rendering with parallel jobs, a shared two-second budget,
+  nonblocking cancellation, and a persistent per-project heavy-render fuse.
+- Retained rendering resources until cancelled jobs finish, including during unload.
+- Added real-QGIS coverage for rendering, symbol samples, lifecycle and timeout,
+  plus pure-core artifact migration/eviction and storage-failure tests.
+
+Settings and release packaging remain pending. QGIS 3.28 and Qt6/4.x runtime
+checks are still required.

@@ -1,8 +1,9 @@
 # Change-focused history previews
 
 Accepted UI direction on 2026-11-01, following the first desktop test.
-This updates the original whole-canvas thumbnail requirement. This document is
-a design specification, not a claim that previews are implemented.
+This updates the original whole-canvas thumbnail requirement. Milestone 5 now
+implements this direction; see [implementation details and limits](milestone-5.md).
+The standard Options integration remains milestone 6.
 
 ## Compact history rows
 

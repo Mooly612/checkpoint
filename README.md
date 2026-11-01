@@ -8,9 +8,9 @@ session. It is not a backup tool and does not protect against crashes or data lo
 
 ## Development status
 
-Milestones 1 through 4 are implemented. This development build provides a native
+Milestones 1 through 5 are implemented. This development build provides a native
 history dock, Auto/Manual capture, and safe user-facing Restore. The pure core has
-41 passing tests. Four smoke scripts passed on QGIS 3.44.8 / Qt 5.15.18 /
+43 passing tests. Five smoke scripts passed on QGIS 3.44.8 / Qt 5.15.18 /
 Python 3.12.11 with offscreen Qt, including the full restore controller through
 actual widgets and a small iface harness. The user has also tested capture in
 the desktop app; the new Restore flow still needs that interactive check.
@@ -22,7 +22,6 @@ alone never restores it. The current state is first saved as a pinned
 
 The remaining milestones, in order, are:
 
-5. Compact before/after symbol samples and map previews, with a two-second fuse.
 6. Standard QGIS Options integration and pin/rename/delete actions.
 7. Release polish and the plugin ZIP packaging script.
 
@@ -31,7 +30,8 @@ support and an explicit maximum version of 4.99; QGIS 3.28 and 4.x runtime check
 are still outstanding. Snapshot APIs and watcher signals were checked against
 the versioned 3.28 and 4.0 documentation. See the
 [milestone 2](docs/milestone-2.md), [milestone 3](docs/milestone-3.md), and
-[milestone 4](docs/milestone-4.md) notes.
+[milestone 4](docs/milestone-4.md) notes. See [milestone 5](docs/milestone-5.md)
+for preview behavior, resource limits, API references, and tests.
 The plugin name must be checked on plugins.qgis.org before publication.
 
 ## Run the core tests
@@ -49,8 +49,9 @@ and do not import or require QGIS. They cover changes and descriptions, view-onl
 deduplication, ring eviction, pins, migration, persistence, corruption, and
 atomic-write failures.
 
-The separate `tests/qgis_smoke.py`, `tests/qgis_watcher_smoke.py`, and
-`tests/qgis_plugin_smoke.py`, plus `tests/qgis_restore_smoke.py` scripts are real-QGIS checks, not pytest tests. They
+The separate `tests/qgis_smoke.py`, `tests/qgis_watcher_smoke.py`,
+`tests/qgis_plugin_smoke.py`, `tests/qgis_restore_smoke.py`, and
+`tests/qgis_thumbnail_smoke.py` scripts are real-QGIS checks, not pytest tests. They
 passed on 3.44.8. The plugin script substitutes only the desktop iface surface,
 using actual QGIS projects, providers, canvas, message bar, and Qt widgets. It
 checks project switching without modifying the user's open project.
@@ -142,6 +143,30 @@ View restoration applies the saved center/extent and then the saved scale,
 ignoring the canvas scale lock for that operation. If the canvas size has
 changed, its final extent can differ to accommodate the saved scale. No CRS
 transformation is attempted because CRS history is outside v1.
+
+## Change-focused previews
+
+**Previews** is on by default. New history rows show small native QGIS symbol
+samples, **before → after**, with up to two changed legend items and a remainder
+count. Dates appear once per day. Click an entry to open its saved before/after
+maps; selection never restores the map. Use the separate Restore button for that.
+
+Maps focus on a representative feature in an affected vector layer and preserve
+surrounding visible layers. Both sides share an extent. For widely separated
+changes, this view may only show the named focus layer's neighborhood. It is not
+exact changed-feature detection. Filter, visibility, order, and label changes use
+text/map context instead of misleading identical symbol swatches.
+
+Previews are captured once and stored with their record. Both styles use data
+available at capture time; feature history is not reconstructed. Old checkpoints
+without images stay explicitly unavailable. Disabling Previews hides samples,
+cancels pending work, and renders/stores no new images. Existing artifacts remain.
+
+A two-second render budget automatically disables previews for a heavy project.
+The panel explains the status; toggle Previews off/on to retry. Synchronous provider
+preparation cannot be interrupted mid-call, so slow remote sources can still delay
+preparation. WMS/XYZ images can be partial or blank. The standard Options control
+arrives in milestone 6.
 
 ## Restore safety
 

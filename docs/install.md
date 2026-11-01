@@ -1,4 +1,4 @@
-# Install the milestone 4 development build
+# Install the milestone 5 development build
 
 The local installation is QGIS 3.44.8-Solothurn with Qt 5.15.18 and Python 3.12.11.
 The discovered profile is `default`. The current build saves, lists, and restores history with a pinned safety snapshot.
@@ -78,3 +78,20 @@ After restarting QGIS to load the updated code:
 History is not a backup of project files or layer data. Manual pin/unpin, rename,
 and delete actions arrive in milestone 6. Closing the dock does not turn Auto off. Select Manual or disable
 the plugin to stop automatic capture.
+
+## Test Previews
+
+1. Restart QGIS and leave **Previews** checked. Old checkpoints will not acquire
+   invented images; create a new checkpoint to start testing.
+2. Change a point symbol's shape/color/size and save another checkpoint. Its row
+   should show before/after samples even if the layer has only a few points.
+3. Click that row. Compare the saved maps at the same extent in a representative
+   neighborhood. Restore remains a separate button below the list.
+4. Change several categories. At most two changed samples appear, with a count
+   of additional symbol changes. Hover for their names.
+5. Change only a filter or visibility. The description and map should explain the
+   operation without identical symbol samples.
+6. Uncheck Previews, change styling, and save. History still works without new
+   images. Check it again to enable previews for subsequent checkpoints.
+7. If a project exceeds the rendering budget, a persistent panel notice explains
+   that previews are disabled for that project. Toggle off/on to retry.

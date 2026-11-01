@@ -5,10 +5,11 @@ from pathlib import Path
 from time import monotonic
 import traceback
 
-from qgis.core import Qgis, QgsApplication, QgsMessageLog, QgsProject
+from qgis.core import Qgis, QgsApplication, QgsMessageLog, QgsProject, QgsSettings
 from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtGui import QIcon
 
+from .core.thumbnail import PreviewTask
 from .core.snapshot import capture, restore
 from .core.store import HistoryStore, project_key
 from .core.watcher import Watcher, disconnect
@@ -22,6 +23,8 @@ class CheckpointPlugin:
         self.root = Path(QgsApplication.qgisSettingsDirPath()) / "checkpoint"
         self.panel = self.action = self.store = self.watcher = None
         self._connections = []
+        self.preview_task = None
+        self.settings = QgsSettings()
         self._busy, self._unloaded = False, False
 
     def initGui(self):
@@ -31,6 +34,8 @@ class CheckpointPlugin:
         self.action.setIcon(QIcon(str(Path(__file__).with_name("icon.svg"))))
         self.iface.addPluginToMenu("Checkpoint", self.action)
         self.iface.addToolBarIcon(self.action)
+        self.panel.previews.setChecked(self.settings.value("checkpoint/previews", True, type=bool))
+        self.panel.previews.toggled.connect(self._toggle_previews)
         self.panel.save_button.clicked.connect(self._manual_save)
         self.panel.restore_button.clicked.connect(self._restore_selected)
         self.panel.mode.currentIndexChanged.connect(self._configure)
@@ -46,6 +51,58 @@ class CheckpointPlugin:
             self._connections.append((signal, slot))
         self._session_ready()
 
+    def _cancel_preview(self):
+        if self.preview_task is not None:
+            task, self.preview_task = self.preview_task, None
+            task.cancel(discard=True)
+
+    def _toggle_previews(self, enabled):
+        self.settings.setValue("checkpoint/previews", enabled)
+        self._cancel_preview()
+        if not enabled and self.panel._dialog is not None:
+            self.panel._dialog.close()
+        if enabled and self.store is not None:
+            self.settings.remove("checkpoint/heavy/" + self.store.key)
+        self._preview_status()
+        if self.store is not None:
+            self.panel.set_records(self.store.records)
+
+    def _preview_status(self):
+        heavy = self.store is not None and self.settings.value(
+            "checkpoint/heavy/" + self.store.key, False, type=bool)
+        self.panel.preview_status.setText(
+            "thumbnails disabled: project is heavy. Toggle Previews off/on to retry."
+            if heavy else "Click an entry for saved maps." if self.panel.previews.isChecked() else "")
+
+    def _capture_preview(self, record, previous):
+        if record is None or not self.panel.previews.isChecked():
+            return
+        store = self.store
+        if self.settings.value("checkpoint/heavy/" + store.key, False, type=bool):
+            return
+        if self.preview_task is not None:
+            self.preview_task.cancel()
+        def finished(payload):
+            self.preview_task = None
+            if self._unloaded or self.store is not store:
+                return
+            if payload["status"] == "thumbnails disabled: project is heavy":
+                self.settings.setValue("checkpoint/heavy/" + store.key, True)
+            try:
+                store.set_preview(record["id"], payload)
+            except KeyError:
+                return  # Ring eviction while rendering.
+            except Exception as exc:
+                QgsMessageLog.logMessage("Cannot save preview: " + str(exc), "Checkpoint",
+                                         Qgis.MessageLevel.Warning)
+                self.panel.preview_status.setText("Preview could not be saved: " + str(exc))
+                return
+            self.panel.set_records(store.records)
+            self._preview_status()
+        self.preview_task = PreviewTask(self.project, self.iface.mapCanvas(), previous,
+                                        record["state"], finished)
+        self.preview_task.start()
+
     def _stop_watcher(self):
         if self.watcher is not None:
             self.watcher.close()
@@ -53,6 +110,7 @@ class CheckpointPlugin:
             self.watcher = None
 
     def _cleared(self):
+        self._cancel_preview()
         self._stop_watcher()
         self.store = None
         self.panel.set_records([])
@@ -61,6 +119,7 @@ class CheckpointPlugin:
     def _session_ready(self):
         if self._unloaded:
             return
+        self._cancel_preview()
         self._stop_watcher()
         self.store = None
         self.panel.set_records([])
@@ -84,6 +143,7 @@ class CheckpointPlugin:
         self._refresh()
 
     def _path_changed(self):
+        self._cancel_preview()
         # Also emitted during opening. Wait for projectSaved or iface.projectRead
         # before deciding whether to migrate or switch to another history.
         self._stop_watcher()
@@ -95,7 +155,11 @@ class CheckpointPlugin:
             return
         try:
             if not self.store.saved:
+                old_key = self.store.key
                 self.store.migrate(path)
+                if self.settings.value("checkpoint/heavy/" + old_key, False, type=bool):
+                    self.settings.setValue("checkpoint/heavy/" + self.store.key, True)
+                    self.settings.remove("checkpoint/heavy/" + old_key)
             elif self.store.key != project_key(path):
                 self.store = HistoryStore(self.root, path)
             else:
@@ -120,6 +184,7 @@ class CheckpointPlugin:
         if not records:
             message += " Save the current style to start."
         self.panel.set_available(True, message)
+        self._preview_status()
 
     def _manual_save(self, *args):
         self._save(manual=True)
@@ -132,7 +197,10 @@ class CheckpointPlugin:
             return
         self._busy = True
         try:
+            records = self.store.records
+            previous = records[-1]["state"] if records else None
             record = self.store.append(capture(self.project, self.iface.mapCanvas()))
+            self._capture_preview(record, previous)
             self.watcher.acknowledge(record is not None)
             self._refresh()
             if manual:
@@ -157,8 +225,10 @@ class CheckpointPlugin:
         try:
             # Persist safety before mutation. Keep a detached target in case the
             # normal ring-buffer policy evicts it when the result is appended.
+            records = self.store.records
             safety = self.store.append_restore(
                 capture(self.project, self.iface.mapCanvas()), before=True)
+            self._capture_preview(safety, records[-1]["state"] if records else None)
             with self.watcher.suppress():
                 notices = restore(self.project, self.iface.mapCanvas(), target["state"])
                 applied = True
@@ -166,8 +236,9 @@ class CheckpointPlugin:
                 description = f"Restored: {title}"
                 if notices:
                     description += "; " + "; ".join(notices)
-                self.store.append_restore(
+                result = self.store.append_restore(
                     capture(self.project, self.iface.mapCanvas()), description=description)
+                self._capture_preview(result, safety["state"])
                 self.watcher.acknowledge(True)
             self._refresh()
             message = "Checkpoint restored. Previous state pinned as 'before restore'."
@@ -198,6 +269,7 @@ class CheckpointPlugin:
 
     def unload(self):
         self._unloaded = True
+        self._cancel_preview()
         self._stop_watcher()
         disconnect(self._connections)
         if self.action is not None:
