@@ -1,8 +1,7 @@
-# Install the milestone 3 development build
+# Install the milestone 4 development build
 
 The local installation is QGIS 3.44.8-Solothurn with Qt 5.15.18 and Python 3.12.11.
-The discovered profile is `default`. The current build saves and lists history;
-the Restore button and its pinned safety snapshot arrive in milestone 4.
+The discovered profile is `default`. The current build saves, lists, and restores history with a pinned safety snapshot.
 
 ## Symlink into the QGIS profile on this Mac
 
@@ -62,7 +61,20 @@ If an error appears, send its text and the traceback from
 **View → Panels → Log Messages → Checkpoint**. The Python error details dialog
 may also contain a traceback if loading the plugin itself fails.
 
-History is not a backup of project files or layer data. The current panel cannot
-yet restore, pin, rename, or delete entries; those actions follow in the specified
-milestones. Closing the dock does not turn Auto off. Select Manual or disable
+## Test Restore
+
+After restarting QGIS to load the updated code:
+
+1. Save a checkpoint, change a layer's style and the map view, then select the old
+   checkpoint. Selection alone must leave the map unchanged.
+2. Click **Restore selected checkpoint** at the bottom of the dock. The old style
+   and view should return. Two entries appear: pinned **before restore** and the
+   new **Restored** result.
+3. Select **before restore** and click Restore to recover the state from step 1.
+4. In a disposable project, delete a layer after saving a checkpoint, then restore
+   that checkpoint. The message bar should name the deleted layer; it is not recreated.
+5. Leave Auto enabled and wait. Restore must not generate additional Auto entries.
+
+History is not a backup of project files or layer data. Manual pin/unpin, rename,
+and delete actions arrive in milestone 6. Closing the dock does not turn Auto off. Select Manual or disable
 the plugin to stop automatic capture.

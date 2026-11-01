@@ -37,6 +37,16 @@
 - Ran all 37 pure-core tests and three real-QGIS smoke scripts on QGIS 3.44.8,
   Qt 5.15.18, Python 3.12.11 using offscreen Qt.
 
-This is now an installable development build. Restore history orchestration,
-thumbnails, settings, and release packaging remain pending. Testing in the real
-QGIS main window, plus QGIS 3.28 and Qt6/4.x runtime checks, is still required.
+### Milestone 4
+
+- Added an explicit Restore selected checkpoint button with selection gating.
+- Persisted a pinned before-restore snapshot before applying any map changes.
+- Recorded the actual restored state as a new unpinned event, retaining later history.
+- Allowed duplicate hashes only for explicit restore events to retain exact views.
+- Suppressed automatic capture during restore and the following event-loop turn.
+- Reported missing layers, rejected filters, partial application, and storage failures.
+- Added core tests and real-QGIS controller checks for restore/undo, unchanged
+  restore, exact view recovery, missing layers, and before/result write failures.
+
+Thumbnails, settings, and release packaging remain pending. QGIS 3.28 and
+Qt6/4.x runtime checks are still required.

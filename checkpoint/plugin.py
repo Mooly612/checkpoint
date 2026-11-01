@@ -9,7 +9,7 @@ from qgis.core import Qgis, QgsApplication, QgsMessageLog, QgsProject
 from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtGui import QIcon
 
-from .core.snapshot import capture
+from .core.snapshot import capture, restore
 from .core.store import HistoryStore, project_key
 from .core.watcher import Watcher, disconnect
 from .ui.panel import HistoryPanel
@@ -32,6 +32,7 @@ class CheckpointPlugin:
         self.iface.addPluginToMenu("Checkpoint", self.action)
         self.iface.addToolBarIcon(self.action)
         self.panel.save_button.clicked.connect(self._manual_save)
+        self.panel.restore_button.clicked.connect(self._restore_selected)
         self.panel.mode.currentIndexChanged.connect(self._configure)
         self.panel.interval.valueChanged.connect(self._configure)
         for signal, slot in (
@@ -139,6 +140,52 @@ class CheckpointPlugin:
                 self.iface.messageBar().pushMessage("Checkpoint", text, level=Qgis.MessageLevel.Info, duration=4)
         except Exception as exc:
             self._error("Cannot save checkpoint", exc)
+        finally:
+            self._busy = False
+
+    def _restore_selected(self, *args):
+        if self._busy or self.store is None or self.watcher is None:
+            return
+        target = next((r for r in self.store.records
+                       if r["id"] == self.panel.selected_id()), None)
+        if target is None:
+            return
+        self._busy = True
+        safety = None
+        applied = False
+        self.panel.set_available(False, "Restoring checkpoint...")
+        try:
+            # Persist safety before mutation. Keep a detached target in case the
+            # normal ring-buffer policy evicts it when the result is appended.
+            safety = self.store.append_restore(
+                capture(self.project, self.iface.mapCanvas()), before=True)
+            with self.watcher.suppress():
+                notices = restore(self.project, self.iface.mapCanvas(), target["state"])
+                applied = True
+                title = target["name"] or target["created_at"]
+                description = f"Restored: {title}"
+                if notices:
+                    description += "; " + "; ".join(notices)
+                self.store.append_restore(
+                    capture(self.project, self.iface.mapCanvas()), description=description)
+                self.watcher.acknowledge(True)
+            self._refresh()
+            message = "Checkpoint restored. Previous state pinned as 'before restore'."
+            if notices:
+                message += " " + "; ".join(notices)
+            self.iface.messageBar().pushMessage(
+                "Checkpoint", message,
+                level=Qgis.MessageLevel.Warning if notices else Qgis.MessageLevel.Info,
+                duration=0 if notices else 5)
+        except Exception as exc:
+            self._refresh()
+            if safety is None:
+                title = "Restore cancelled; could not save the current state"
+            elif applied:
+                title = "Map restored, but result could not be recorded; 'before restore' is available"
+            else:
+                title = "Restore failed; map may be partially changed. Restore 'before restore' to undo"
+            self._error(title, exc)
         finally:
             self._busy = False
 

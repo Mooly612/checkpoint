@@ -101,11 +101,22 @@ class HistoryStore:
     def append(self, state: dict, *, pinned: bool = False, name: str = "",
                description: str | None = None) -> dict | None:
         """Skip an unchanged latest state, including view-only changes."""
+        return self._append(state, pinned=pinned, name=name, description=description)
+
+    def append_restore(self, state: dict, *, before: bool = False,
+                       description: str | None = None) -> dict:
+        """Always record restore events, including their exact map view."""
+        return self._append(state, pinned=before,
+                            name="before restore" if before else "",
+                            description=description, force=True)
+
+    def _append(self, state: dict, *, pinned=False, name="", description=None,
+                force=False) -> dict | None:
         state = deepcopy(state)
         components = component_hashes(state)
         hashed = digest(components)
         previous = self._records[-1] if self._records else None
-        if previous and previous["state_hash"] == hashed:
+        if not force and previous and previous["state_hash"] == hashed:
             return None
         record = {
             "id": uuid4().hex,

@@ -1,4 +1,4 @@
-"""Minimal native history dock, without thumbnails or restore actions yet."""
+"""Native history dock with explicit save and restore actions."""
 
 from datetime import datetime
 
@@ -37,13 +37,28 @@ class HistoryPanel(QDockWidget):
         self.history.setWordWrap(True)
         self.history.setAccessibleName("Checkpoint history")
         layout.addWidget(self.history)
+        self.restore_button = QPushButton("Restore selected checkpoint", body)
+        self.restore_button.setToolTip("Pin the current state, then restore the selected checkpoint.")
+        self.restore_button.setEnabled(False)
+        layout.addWidget(self.restore_button)
+        self._available = False
+        self.history.currentItemChanged.connect(self._selection_changed)
         self.setWidget(body)
 
     def set_available(self, available: bool, message: str):
+        self._available = available
+        self._selection_changed()
         self.save_button.setEnabled(available)
         self.mode.setEnabled(available)
         self.interval.setEnabled(available and self.mode.currentText() == "Auto")
         self.status.setText(message)
+
+    def selected_id(self):
+        item = self.history.currentItem()
+        return item.data(Qt.ItemDataRole.UserRole) if item is not None else None
+
+    def _selection_changed(self, *args):
+        self.restore_button.setEnabled(self._available and self.selected_id() is not None)
 
     def set_records(self, records: list):
         current = self.history.currentItem()

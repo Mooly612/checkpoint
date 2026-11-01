@@ -183,3 +183,45 @@ def test_migration_requires_first_save(tmp_path):
         HistoryStore(tmp_path).migrate("")
     with pytest.raises(ValueError):
         HistoryStore(tmp_path, "/projects/map.qgz").migrate("/projects/renamed.qgz")
+
+
+def test_restore_events_keep_exact_view_even_when_style_matches(tmp_path, state):
+    store = HistoryStore(tmp_path, "/projects/map.qgz")
+    original = store.append(state)
+    moved = deepcopy(state)
+    moved.update(extent=[1, 2, 3, 4], scale=500)
+    safety = store.append_restore(moved, before=True)
+    result = store.append_restore(state, description="Restored: Initial checkpoint")
+    assert safety["pinned"] and safety["name"] == "before restore"
+    assert safety["state"] == moved
+    assert not result["pinned"] and result["state"] == state
+    assert len({r["id"] for r in (original, safety, result)}) == 3
+    assert store.append(moved) is None  # Auto/Manual still deduplicate.
+    assert HistoryStore(tmp_path, "/projects/map.qgz").records == [original, safety, result]
+
+
+def test_restore_safety_survives_ring_eviction(tmp_path, variant):
+    store = HistoryStore(tmp_path, limit=1)
+    store.append(variant(1))
+    safety = store.append_restore(variant(2), before=True)
+    result = store.append_restore(variant(1), description="Restored: initial")
+    assert store.records == [safety, result]
+    for index in range(3, 10):
+        store.append(variant(index))
+    assert store.records[0] == safety
+
+
+@pytest.mark.parametrize("before", [True, False])
+def test_failed_restore_record_write_preserves_history(tmp_path, variant, monkeypatch, before):
+    store = HistoryStore(tmp_path, "/projects/map.qgz")
+    store.append(variant(1))
+    old_records, old_file = store.records, store.path.read_bytes()
+
+    def fail(*args):
+        raise OSError("Disk full")
+
+    monkeypatch.setattr("checkpoint.core.store.os.replace", fail)
+    with pytest.raises(OSError, match="Disk full"):
+        store.append_restore(variant(2), before=before)
+    assert store.records == old_records
+    assert store.path.read_bytes() == old_file

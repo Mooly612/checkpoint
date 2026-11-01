@@ -126,4 +126,5 @@ def run():
             iface.window.close()
 
 
-run()
+if __name__ == "__main__":
+    run()

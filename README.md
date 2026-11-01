@@ -2,35 +2,36 @@
 
 *Undo for your map styling.*
 
-Checkpoint is a QGIS plugin in development. It will record the appearance of
-the Layers panel and let you restore an earlier styling state inside the open
+Checkpoint is a QGIS plugin in development. It records the appearance of
+the Layers panel and lets you restore an earlier styling state inside the open
 session. It is not a backup tool and does not protect against crashes or data loss.
 
 ## Development status
 
-Milestones 1 through 3 are implemented. This is an installable development build
-with a native history dock, Auto/Manual capture, and a signal-driven watcher.
-The pure core has 37 passing tests. Three additional smoke scripts passed using
-the installed QGIS 3.44.8 / Qt 5.15.18 / Python 3.12.11 runtime with offscreen Qt:
-snapshot restoration, watcher scheduling, and plugin wiring with an iface harness.
-The main QGIS desktop window has not yet been tested with the plugin enabled.
+Milestones 1 through 4 are implemented. This development build provides a native
+history dock, Auto/Manual capture, and safe user-facing Restore. The pure core has
+41 passing tests. Four smoke scripts passed on QGIS 3.44.8 / Qt 5.15.18 /
+Python 3.12.11 with offscreen Qt, including the full restore controller through
+actual widgets and a small iface harness. The user has also tested capture in
+the desktop app; the new Restore flow still needs that interactive check.
 
 [Install and test the development build](docs/install.md).
-The current panel captures and lists checkpoints. Restore actions are deliberately
-introduced with the complete pre-restore safety flow in milestone 4.
+Select a history entry and click **Restore selected checkpoint**. Selecting a row
+alone never restores it. The current state is first saved as a pinned
+**before restore** checkpoint; restore that entry to undo the operation.
 
 The remaining milestones, in order, are:
 
-4. Restore flow, including a pinned pre-restore state and message-bar integration.
-5. Thumbnail rendering and the per-project two-second safety fuse.
-6. Standard QGIS Options integration and history actions in the panel.
+5. Compact before/after symbol samples and map previews, with a two-second fuse.
+6. Standard QGIS Options integration and pin/rename/delete actions.
 7. Release polish and the plugin ZIP packaging script.
 
 The target is QGIS 3.28+ and 4.x using `qgis.PyQt` only. Metadata declares Qt6
 support and an explicit maximum version of 4.99; QGIS 3.28 and 4.x runtime checks
 are still outstanding. Snapshot APIs and watcher signals were checked against
 the versioned 3.28 and 4.0 documentation. See the
-[milestone 2](docs/milestone-2.md) and [milestone 3](docs/milestone-3.md) notes.
+[milestone 2](docs/milestone-2.md), [milestone 3](docs/milestone-3.md), and
+[milestone 4](docs/milestone-4.md) notes.
 The plugin name must be checked on plugins.qgis.org before publication.
 
 ## Run the core tests
@@ -49,7 +50,7 @@ deduplication, ring eviction, pins, migration, persistence, corruption, and
 atomic-write failures.
 
 The separate `tests/qgis_smoke.py`, `tests/qgis_watcher_smoke.py`, and
-`tests/qgis_plugin_smoke.py` scripts are real-QGIS checks, not pytest tests. They
+`tests/qgis_plugin_smoke.py`, plus `tests/qgis_restore_smoke.py` scripts are real-QGIS checks, not pytest tests. They
 passed on 3.44.8. The plugin script substitutes only the desktop iface surface,
 using actual QGIS projects, providers, canvas, message bar, and Qt widgets. It
 checks project switching without modifying the user's open project.
@@ -135,14 +136,35 @@ restored in `finally`. Style XML is checked before any mutation. QGIS's
 style behavior still requires runtime testing. This low-level API does not
 implement transactional rollback or record history: the controller must save
 the pinned pre-restore state and suppress the watcher before calling it. The
-watcher guard is implemented; the user-facing restore controller is milestone 4.
+controller now implements this safety flow and watcher guard.
 
 View restoration applies the saved center/extent and then the saved scale,
 ignoring the canvas scale lock for that operation. If the canvas size has
 changed, its final extent can differ to accommodate the saved scale. No CRS
 transformation is attempted because CRS history is outside v1.
 
-## Planned v1 behavior and limitations
+## Restore safety
+
+Restore creates two distinct records, even when their styling hashes match:
+a pinned `before restore` entry with the exact current view, and an unpinned
+result with the actual captured state after applying the target. This is an
+explicit exception to deduplication for Restore only; Auto and Manual still skip
+unchanged styling. Old records are not rewritten and later history is not
+truncated. The normal unpinned ring limit still applies to new result entries.
+
+If saving the safety entry fails, nothing is applied. If application fails partway
+through, the safety entry remains available and the message bar explains how to
+recover. If recording the result fails, the restored map remains in place and the
+message explicitly reports that the result was not recorded. There is no automatic
+rollback on provider errors. Missing layers and rejected filters are reported in
+the message bar and retained in the result description.
+
+View restoration is currently on. Its standard Options checkbox arrives in
+milestone 6. Safety records are pinned and can accumulate; the UI for deleting or
+unpinning them also arrives in milestone 6. Unsaved-project history is still only
+in memory and is lost when that project closes.
+
+## v1 behavior and limitations
 
 - Auto mode responds to changes with about two seconds of debounce. Its interval
   is a minimum gap, not a second periodic trigger. Manual save works in both modes.
