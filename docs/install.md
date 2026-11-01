@@ -1,4 +1,4 @@
-# Install the milestone 5 development build
+# Install the milestone 6 development build
 
 The local installation is QGIS 3.44.8-Solothurn with Qt 5.15.18 and Python 3.12.11.
 The discovered profile is `default`. The current build saves, lists, and restores history with a pinned safety snapshot.
@@ -75,8 +75,7 @@ After restarting QGIS to load the updated code:
    that checkpoint. The message bar should name the deleted layer; it is not recreated.
 5. Leave Auto enabled and wait. Restore must not generate additional Auto entries.
 
-History is not a backup of project files or layer data. Manual pin/unpin, rename,
-and delete actions arrive in milestone 6. Closing the dock does not turn Auto off. Select Manual or disable
+History is not a backup of project files or layer data. Select a checkpoint to pin/unpin, rename, or delete it. Closing the dock does not turn Auto off. Select Manual or disable
 the plugin to stop automatic capture.
 
 ## Test Previews
@@ -95,3 +94,8 @@ the plugin to stop automatic capture.
    images. Check it again to enable previews for subsequent checkpoints.
 7. If a project exceeds the rendering budget, a persistent panel notice explains
    that previews are disabled for that project. Toggle off/on to retry.
+
+## Settings
+
+Click **Settings…**, then select **Checkpoint** in QGIS Options. Changes apply
+when the dialog is accepted. Restart QGIS once after installing this code update.

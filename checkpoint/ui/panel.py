@@ -5,7 +5,7 @@ from datetime import datetime
 from qgis.PyQt.QtCore import QSize, Qt
 from qgis.PyQt.QtWidgets import (
     QCheckBox, QComboBox, QDockWidget, QFormLayout, QLabel, QListWidget, QListWidgetItem,
-    QPushButton, QSpinBox, QVBoxLayout, QWidget,
+    QPushButton, QSpinBox, QVBoxLayout, QWidget, QHBoxLayout,
 )
 
 
@@ -56,6 +56,15 @@ class HistoryPanel(QDockWidget):
         self.restore_button.setToolTip("Pin the current state, then restore the selected checkpoint.")
         self.restore_button.setEnabled(False)
         layout.addWidget(self.restore_button)
+        actions = QHBoxLayout()
+        self.pin_button = QPushButton("Pin / Unpin", body)
+        self.rename_button = QPushButton("Rename", body)
+        self.delete_button = QPushButton("Delete", body)
+        self.options_button = QPushButton("Settings…", body)
+        for button in (self.pin_button, self.rename_button, self.delete_button):
+            actions.addWidget(button)
+        layout.addLayout(actions)
+        layout.addWidget(self.options_button)
         self._available = False
         self.history.currentItemChanged.connect(self._selection_changed)
         self.setWidget(body)
@@ -73,7 +82,9 @@ class HistoryPanel(QDockWidget):
         return item.data(Qt.ItemDataRole.UserRole) if item is not None else None
 
     def _selection_changed(self, *args):
-        self.restore_button.setEnabled(self._available and self.selected_id() is not None)
+        enabled = self._available and self.selected_id() is not None
+        for button in (self.restore_button, self.pin_button, self.rename_button, self.delete_button):
+            button.setEnabled(enabled)
 
     def _open_preview(self, item):
         record = self._records.get(item.data(Qt.ItemDataRole.UserRole))

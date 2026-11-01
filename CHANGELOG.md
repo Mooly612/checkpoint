@@ -63,3 +63,12 @@
 
 Settings and release packaging remain pending. QGIS 3.28 and Qt6/4.x runtime
 checks are still required.
+
+### Milestone 6
+
+- Added a standard QGIS Options page for previews, map-view restoration, unpinned
+  history limit, and default capture interval.
+- Added Pin/Unpin, Rename, and Delete controls. Deletion requires confirmation,
+  with an explicit pinned-record warning and No as the default.
+- Registered/unregistered the Options factory with plugin lifecycle and added
+  actual QGIS widget checks for applying options and editing history.

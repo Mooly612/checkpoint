@@ -8,12 +8,14 @@ import traceback
 from qgis.core import Qgis, QgsApplication, QgsMessageLog, QgsProject, QgsSettings
 from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtGui import QIcon
+from qgis.PyQt.QtWidgets import QInputDialog, QMessageBox
 
 from .core.thumbnail import PreviewTask
 from .core.snapshot import capture, restore
 from .core.store import HistoryStore, project_key
 from .core.watcher import Watcher, disconnect
 from .ui.panel import HistoryPanel
+from .ui.settings import OptionsFactory
 
 
 class CheckpointPlugin:
@@ -25,6 +27,7 @@ class CheckpointPlugin:
         self._connections = []
         self.preview_task = None
         self.settings = QgsSettings()
+        self.options_factory = None
         self._busy, self._unloaded = False, False
 
     def initGui(self):
@@ -34,6 +37,13 @@ class CheckpointPlugin:
         self.action.setIcon(QIcon(str(Path(__file__).with_name("icon.svg"))))
         self.iface.addPluginToMenu("Checkpoint", self.action)
         self.iface.addToolBarIcon(self.action)
+        self.options_factory = OptionsFactory(self._apply_options)
+        self.iface.registerOptionsWidgetFactory(self.options_factory)
+        self.panel.interval.setValue(self.settings.value("checkpoint/interval", 60, type=int))
+        self.panel.pin_button.clicked.connect(lambda: self._history_action("pin"))
+        self.panel.rename_button.clicked.connect(lambda: self._history_action("rename"))
+        self.panel.delete_button.clicked.connect(lambda: self._history_action("delete"))
+        self.panel.options_button.clicked.connect(lambda: self.iface.showOptionsDialog(self.iface.mainWindow()))
         self.panel.previews.setChecked(self.settings.value("checkpoint/previews", True, type=bool))
         self.panel.previews.toggled.connect(self._toggle_previews)
         self.panel.save_button.clicked.connect(self._manual_save)
@@ -50,6 +60,44 @@ class CheckpointPlugin:
             signal.connect(slot)
             self._connections.append((signal, slot))
         self._session_ready()
+
+    def _apply_options(self):
+        if self._unloaded:
+            return
+        self.panel.previews.setChecked(self.settings.value("checkpoint/previews", True, type=bool))
+        self.panel.interval.setValue(self.settings.value("checkpoint/interval", 60, type=int))
+        if self.store is not None:
+            try:
+                self.store.set_limit(self.settings.value("checkpoint/limit", 20, type=int))
+                self._refresh()
+            except Exception as exc:
+                self._error("Cannot apply history limit", exc)
+
+    def _history_action(self, action):
+        if self._busy or self.store is None or self.watcher is None:
+            return
+        record = next((r for r in self.store.records if r["id"] == self.panel.selected_id()), None)
+        if record is None:
+            return
+        try:
+            if action == "pin":
+                self.store.set_pinned(record["id"], not record["pinned"])
+            elif action == "rename":
+                name, accepted = QInputDialog.getText(self.panel, "Rename checkpoint", "Name:", text=record["name"])
+                if not accepted:
+                    return
+                self.store.rename(record["id"], name)
+            elif action == "delete":
+                answer = QMessageBox.question(self.panel, "Delete checkpoint",
+                    "Delete this checkpoint permanently?" + (" This is a pinned checkpoint." if record["pinned"] else ""),
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No)
+                if answer != QMessageBox.StandardButton.Yes:
+                    return
+                self.store.delete(record["id"])
+            self._refresh()
+        except Exception as exc:
+            self._error("Cannot update checkpoint", exc)
 
     def _cancel_preview(self):
         if self.preview_task is not None:
@@ -124,7 +172,7 @@ class CheckpointPlugin:
         self.store = None
         self.panel.set_records([])
         try:
-            self.store = HistoryStore(self.root, self.project.fileName())
+            self.store = HistoryStore(self.root, self.project.fileName(), self.settings.value("checkpoint/limit", 20, type=int))
             self._start_watcher()
         except Exception as exc:
             self._error("Cannot open checkpoint history", exc, disable=True)
@@ -161,7 +209,7 @@ class CheckpointPlugin:
                     self.settings.setValue("checkpoint/heavy/" + self.store.key, True)
                     self.settings.remove("checkpoint/heavy/" + old_key)
             elif self.store.key != project_key(path):
-                self.store = HistoryStore(self.root, path)
+                self.store = HistoryStore(self.root, path, self.settings.value("checkpoint/limit", 20, type=int))
             else:
                 if self.watcher is not None:
                     return
@@ -230,7 +278,8 @@ class CheckpointPlugin:
                 capture(self.project, self.iface.mapCanvas()), before=True)
             self._capture_preview(safety, records[-1]["state"] if records else None)
             with self.watcher.suppress():
-                notices = restore(self.project, self.iface.mapCanvas(), target["state"])
+                notices = restore(self.project, self.iface.mapCanvas(), target["state"],
+                                  restore_view=self.settings.value("checkpoint/restore_view", True, type=bool))
                 applied = True
                 title = target["name"] or target["created_at"]
                 description = f"Restored: {title}"
@@ -269,6 +318,9 @@ class CheckpointPlugin:
 
     def unload(self):
         self._unloaded = True
+        if self.options_factory is not None:
+            self.iface.unregisterOptionsWidgetFactory(self.options_factory)
+            self.options_factory = None
         self._cancel_preview()
         self._stop_watcher()
         disconnect(self._connections)

@@ -8,7 +8,7 @@ session. It is not a backup tool and does not protect against crashes or data lo
 
 ## Development status
 
-Milestones 1 through 5 are implemented. This development build provides a native
+Milestones 1 through 6 are implemented. This development build provides a native
 history dock, Auto/Manual capture, and safe user-facing Restore. The pure core has
 43 passing tests. Five smoke scripts passed on QGIS 3.44.8 / Qt 5.15.18 /
 Python 3.12.11 with offscreen Qt, including the full restore controller through
@@ -22,7 +22,6 @@ alone never restores it. The current state is first saved as a pinned
 
 The remaining milestones, in order, are:
 
-6. Standard QGIS Options integration and pin/rename/delete actions.
 7. Release polish and the plugin ZIP packaging script.
 
 The target is QGIS 3.28+ and 4.x using `qgis.PyQt` only. Metadata declares Qt6
@@ -165,8 +164,7 @@ cancels pending work, and renders/stores no new images. Existing artifacts remai
 A two-second render budget automatically disables previews for a heavy project.
 The panel explains the status; toggle Previews off/on to retry. Synchronous provider
 preparation cannot be interrupted mid-call, so slow remote sources can still delay
-preparation. WMS/XYZ images can be partial or blank. The standard Options control
-arrives in milestone 6.
+preparation. WMS/XYZ images can be partial or blank. The same preview preference is available in standard QGIS Options.
 
 ## Restore safety
 
@@ -184,9 +182,8 @@ message explicitly reports that the result was not recorded. There is no automat
 rollback on provider errors. Missing layers and rejected filters are reported in
 the message bar and retained in the result description.
 
-View restoration is currently on. Its standard Options checkbox arrives in
-milestone 6. Safety records are pinned and can accumulate; the UI for deleting or
-unpinning them also arrives in milestone 6. Unsaved-project history is still only
+View restoration is on by default and can be disabled in QGIS Options. Safety
+records are pinned and can accumulate; use Delete or Pin/Unpin to manage them. Unsaved-project history is still only
 in memory and is lost when that project closes.
 
 ## v1 behavior and limitations
@@ -214,3 +211,11 @@ Author: Alen Alimzhanov, <mooly612@gmail.com>.
 
 Copyright (C) 2026 Alen Alimzhanov. Licensed under the GNU General Public License,
 version 2 or, at your option, any later version (`GPL-2.0-or-later`). See `LICENSE`.
+
+## Settings and history actions
+
+Use **Settings…** in the dock, then select **Checkpoint** in standard QGIS Options.
+Configure previews, map-view restoration, buffer size, and the default interval.
+Lowering the buffer immediately removes excess unpinned entries. Select a record
+to Pin/Unpin, Rename, or Delete; deletion asks for confirmation.
+See [milestone 6](docs/milestone-6.md) for details.

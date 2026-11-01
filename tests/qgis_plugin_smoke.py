@@ -25,6 +25,16 @@ class InterfaceHarness(QObject):
         self.toolbar = self.window.addToolBar("Plugins")
         self.menu = self.window.menuBar().addMenu("Plugins")
 
+    def registerOptionsWidgetFactory(self, factory):
+        self.factory = factory
+
+    def unregisterOptionsWidgetFactory(self, factory):
+        assert self.factory is factory
+        self.factory = None
+
+    def showOptionsDialog(self, parent):
+        pass
+
     def mainWindow(self):
         return self.window
 
