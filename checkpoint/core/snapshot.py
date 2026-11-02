@@ -4,7 +4,7 @@ from ..i18n import tr
 
 import math
 from uuid import uuid4
-from xml.etree import ElementTree
+from . import safe_xml as ElementTree
 
 from qgis.core import (
     Qgis, QgsApplication, QgsCoordinateReferenceSystem, QgsCoordinateTransform,
@@ -30,6 +30,7 @@ def _main_thread():
 
 
 def _element(xml):
+    ElementTree.fromstring(xml)
     doc = QDomDocument()
     result = doc.setContent(xml)
     if not (result[0] if isinstance(result, tuple) else result):

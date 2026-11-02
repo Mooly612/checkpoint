@@ -1,3 +1,9 @@
+## 0.2.3
+
+- Reject XML entities and external references with bundled defusedxml 0.7.1.
+- Validate XML before Qt parsing and canonicalization; include dependency license.
+- Add malicious XML regression tests and run Bandit against the plugin.
+
 ## 0.2.2
 
 - Use the supplied PNG artwork in the QGIS toolbar and Options page.

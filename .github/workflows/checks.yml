@@ -21,6 +21,7 @@ jobs:
           python-version: '${{ matrix.python }}'
       - run: python -m pip install -r requirements-dev.txt
       - run: python -m pytest -q
+      - run: python -m bandit -r checkpoint -q
       - run: python scripts/package.py
       - uses: actions/upload-artifact@v4
         with:
@@ -33,6 +34,6 @@ jobs:
       - uses: actions/checkout@v4
       - run: python3 scripts/package.py
       # The runner's python3 must import QGIS/Qt and its providers successfully.
-      - run: python3 scripts/run_qgis_checks.py --package dist/checkpoint-0.2.2.zip
+      - run: python3 scripts/run_qgis_checks.py --package dist/checkpoint-0.2.3.zip
         env:
           QT_QPA_PLATFORM: offscreen

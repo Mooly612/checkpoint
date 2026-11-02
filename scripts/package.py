@@ -33,7 +33,7 @@ def build(root=ROOT, output=None):
             continue
         if path.is_symlink():
             raise ValueError("Plugin source must not contain symlinks: " + str(relative))
-        if path.is_file() and (path.suffix in {".py", ".svg", ".png"} or relative.as_posix() == "metadata.txt"):
+        if path.is_file() and (path.suffix in {".py", ".svg", ".png"} or path.name == "LICENSE" or relative.as_posix() == "metadata.txt"):
             data = path.read_bytes()
             if path.suffix == ".py":
                 ast.parse(data, filename=str(path))

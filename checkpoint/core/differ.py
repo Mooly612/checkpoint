@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from xml.etree import ElementTree
+from . import safe_xml as ElementTree
 from collections import OrderedDict
 
 from ..i18n import tr

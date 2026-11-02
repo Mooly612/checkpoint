@@ -3,7 +3,7 @@
 import base64
 from collections import defaultdict
 from time import monotonic
-from xml.etree import ElementTree
+from . import safe_xml as ElementTree
 
 from qgis.core import (
     QgsCoordinateTransform, QgsFeatureRequest, QgsFeatureRenderer, QgsMapLayerStyle, QgsMapSettings,

@@ -15,12 +15,12 @@ checkpoint and applies a snapshot across existing layers.
 
 ## Install and try it
 
-This is **0.2.2, an experimental build prepared for QGIS repository submission**.
-The prepared artifact is `dist/checkpoint-0.2.2.zip`, with a `.zip.sha256` sidecar.
+This is **0.2.3, an experimental build prepared for QGIS repository submission**.
+The prepared artifact is `dist/checkpoint-0.2.3.zip`, with a `.zip.sha256` sidecar.
 To build it from this checkout, run `python3 scripts/package.py`.
 
 1. In QGIS, open **Plugins → Manage and Install Plugins → Install from ZIP** and
-   choose `checkpoint-0.2.2.zip`. Enable Checkpoint. Restart QGIS after updating.
+   choose `checkpoint-0.2.3.zip`. Enable Checkpoint. Restart QGIS after updating.
 2. Open a project. Checkpoint creates a starting point after loading completes.
    Check the panel status before editing. An empty project waits for its layers.
 3. Change the appearance of two layers. **Auto** saves after a 2-second pause in
