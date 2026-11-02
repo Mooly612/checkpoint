@@ -1,39 +1,40 @@
-# Alternatives and usability assessment
+# Usability validation plan
 
-Checkpoint has a plausible niche, not a unique claim to undo in QGIS.
+No user research has been conducted for 0.2.0. Automated checks and the author's
+visual inspection are engineering evidence, not observed usability results.
 
-- [QGIS Layer Styling dock](https://changelog.qgis.org/id/entry/494) already offers
-  live styling with undo/redo. Prefer it for ordinary single-layer style editing.
-- [Map themes](https://documentation.qgis.org/3.10/en/docs/user_manual/introduction/general_tools.html)
-  provide named combinations of visible layers and active styles. Prefer explicit
-  themes for presentation variants rather than accumulating automatic history.
-- [Apply Layer Styles](https://plugins.qgis.org/plugins/apply_layer_styles/) copies
-  styles across layers; it addresses reuse rather than project-wide checkpoints.
+Recruit 5–8 QGIS users: several who use layer styling daily and several who rely
+on Map Themes or built-in Undo. Use the supplied synthetic neighborhood project.
+Give each participant a fresh temporary profile/history and the same brief:
 
-Checkpoint's useful distinction is a single chronological history combining style
-XML, filters and tree changes across multiple layers, with reversible restoration
-in the current session. The search was not an exhaustive audit of every plugin;
-we should not advertise it as the only solution.
+1. Establish a safe starting point and explain whether it is currently saved.
+2. Change roads and buildings, including the building filter. Save that variant.
+3. Select the first checkpoint. Before applying, say which layers and properties
+   will change and whether geometry, attributes or the project file will change.
+4. Apply it. Return to the state immediately before that application.
+5. Open the saved preview and explain its relation to today's data and Apply.
+6. Encounter unavailable map previews. Find the details/samples and retry maps.
+7. Switch to Manual, inspect a memory-only project, then use Save As and explain
+   where the old and new histories will live.
+8. Pin a checkpoint, review recovery cleanup, and predict what will remain.
 
-## Critique of the current build
+Do not teach the intended action before the participant tries. Record task
+completion, time, first wrong action, requests for help, unexpected popups,
+confusion between historical description and application scope, uncertainty about
+recovery retention, and whether status is interpreted as data backup protection.
+Ask for confidence before and after Apply. Compare behavior, not preferences alone.
 
-The functionality is useful for cartographic experimentation, but convenience is
-not yet proven. The user's confusion about Restore is evidence that the wording
-needs work: a row describes a change, while Restore applies a full saved styling
-state. A clearer future label is "Apply saved map styling", with an affected-layer
-summary before application.
+Engineering acceptance already covered: selection does not change styling/open a
+popup; long names have tooltips; details scroll at ordinary dock width; keyboard
+focus can reach list, details and actions; missing maps leave text accessible;
+safety-write failure leaves the map unchanged; partial failure leaves recovery.
 
-The click-open dialog interrupts browsing the list. A persistent preview area or
-explicit Preview button would reduce accidental popups. The two-second fuse has
-already failed on a real project; isolated tests cannot certify performance for
-remote/large providers. Symbol samples should eventually remain usable even when
-map rendering is disabled. Automatic pinned safety records clutter the history;
-a dedicated recovery section or grouped restore events would help. Sparse-feature
-focus can miss other changed layers. The minimum-gap control is also easy to
-mistake for a periodic autosave interval.
+Remaining research questions include whether a full-snapshot Apply is predictable,
+whether Undo is found without prompting, and whether explicit recovery cleanup is
+understood. Publish participant counts, actual observations and limitations only
+after running the study. Never fill this document with invented results.
 
-Recommended next validation: ask several QGIS users to save a baseline, change two
-layers, restore, undo that restore, and recover from a missing preview without
-coaching. Record wrong actions, recovery success, and time to understand the state.
-Until then this is an experimental helper, not a demonstrated polished replacement
-for native styling undo or map themes.
+For one layer, QGIS's own styling history can be enough. Its documented Map Themes
+reference named styles and are useful for presentation variants. Checkpoint adds
+persistent snapshots across existing layers, with the narrow contract described
+in [the reference](reference.md).

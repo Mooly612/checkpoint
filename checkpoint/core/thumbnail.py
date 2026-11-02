@@ -6,15 +6,17 @@ from time import monotonic
 from xml.etree import ElementTree
 
 from qgis.core import (
-    QgsCoordinateTransform, QgsFeatureRequest, QgsMapLayerStyle, QgsMapSettings,
+    QgsCoordinateTransform, QgsFeatureRequest, QgsFeatureRenderer, QgsMapLayerStyle, QgsMapSettings,
+    QgsReadWriteContext,
     QgsMapRendererParallelJob, QgsPointCloudLayer, QgsRectangle, QgsSymbolLayerUtils,
     QgsVectorLayer,
 )
 from qgis.PyQt.QtCore import QBuffer, QIODevice, QObject, QSize, QTimer, Qt
 from qgis.PyQt.QtGui import QColor, QImage, QPainter
 
-from .differ import describe
-from .snapshot import _main_thread
+from .differ import _tree_parts, describe, styles_equal
+from ..i18n import tr
+from .snapshot import _element, _main_thread, prepare_view
 
 # Cancel is asynchronous: retain jobs AND their detached layers until finished,
 # including after the plugin is unloaded or its project has been closed.
@@ -25,7 +27,7 @@ def encode(image, fmt="PNG", quality=-1):
     buffer = QBuffer()
     buffer.open(QIODevice.OpenModeFlag.WriteOnly)
     if not image.save(buffer, fmt, quality):
-        raise ValueError("Cannot encode preview image")
+        raise ValueError(tr("Cannot encode preview image"))
     return base64.b64encode(bytes(buffer.data())).decode("ascii")
 
 
@@ -40,7 +42,10 @@ def changed_ids(before, after):
     if before is None:
         return list(after["layers"])
     old, new = before["layers"], after["layers"]
-    changed = {key for key in old.keys() | new.keys() if old.get(key) != new.get(key)}
+    changed = set(old.keys() ^ new.keys())
+    changed.update(key for key in old.keys() & new.keys()
+                   if old[key]["filter"] != new[key]["filter"]
+                   or not styles_equal(old[key]["style"], new[key]["style"]))
     changed.update(set(visible_ids(before["tree"])) ^ set(visible_ids(after["tree"])))
     return sorted(changed)
 
@@ -68,15 +73,71 @@ def legend_samples(layer, check_time=lambda: None):
     return items
 
 
+def symbol_samples(state, key):
+    """Read renderer XML without cloning or calling the source data provider."""
+    saved = state["layers"].get(key) if state else None
+    if saved is None:
+        return {}
+    doc, element = _element(saved["style"])
+    renderer_element = element.firstChildElement("renderer-v2")
+    if renderer_element.isNull():
+        return {}
+    renderer = QgsFeatureRenderer.load(renderer_element, QgsReadWriteContext())
+    if renderer is None:
+        return {}
+    opacity_text = element.firstChildElement("layerOpacity").text()
+    opacity = float(opacity_text) if opacity_text else 1.0
+    # Use the same native symbol rendering, without any live QgsMapLayer.
+    result, occurrences = {}, defaultdict(int)
+    for item in renderer.legendSymbolItems():
+        symbol = item.symbol()
+        if symbol is None:
+            continue
+        key = (item.label(), occurrences[item.label()])
+        occurrences[item.label()] += 1
+        pixmap = QgsSymbolLayerUtils.symbolPreviewPixmap(symbol, QSize(28, 28), 3)
+        image = QImage(28, 28, QImage.Format.Format_ARGB32_Premultiplied)
+        image.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(image)
+        painter.setOpacity(opacity)
+        painter.drawPixmap(0, 0, pixmap)
+        painter.end()
+        result[key] = encode(image)
+    return result
+
+
+def lightweight_preview(before, after):
+    payload = {"summary": describe(before, after), "samples": [], "more": 0,
+               "maps": {}, "status": tr("Map previews off"), "note": tr("Historical comparison, not a simulation of applying this entry now.")}
+    samples = []
+    for key in changed_ids(before, after):
+        try:
+            old, new = symbol_samples(before, key), symbol_samples(after, key)
+            source = after["layers"].get(key) or before["layers"][key]
+            for label in sorted(old.keys() | new.keys()):
+                if old.get(label) != new.get(label):
+                    samples.append({"label": source["name"] + (": " + label[0] if label[0] else ""),
+                                    "before": old.get(label), "after": new.get(label)})
+        except Exception as exc:
+            payload["note"] += " Symbol sample unavailable: " + str(exc)
+    payload["samples"], payload["more"] = samples[:2], max(0, len(samples) - 2)
+    return payload
+
+
 class PreviewTask(QObject):
-    """One before/after pair, one total two-second budget, no custom worker thread."""
-    def __init__(self, project, canvas, before, after, callback):
+    """GUI-thread preparation and QGIS render jobs; two seconds is a soft budget.
+
+    Synchronous provider calls may exceed it. Preparation and render timings are
+    measured separately; cancellation retains resources until jobs finish.
+    """
+    def __init__(self, project, canvas, before, after, callback, *, maps=True):
         super().__init__()
         self.project, self.canvas = project, canvas
         self.before, self.after, self.callback = before, after, callback
+        self.render_maps = maps
         self.layers, self.jobs, self.finished_jobs = {}, [], set()
         self.payload = {"summary": describe(before, after), "samples": [], "more": 0,
-                        "maps": {}, "status": "Preparing preview", "note": ""}
+                        "maps": {}, "status": tr("Preparing preview"), "note": ""}
         self.timer = QTimer(self)
         self.timer.setSingleShot(True)
         self.timer.setTimerType(Qt.TimerType.PreciseTimer)
@@ -86,14 +147,14 @@ class PreviewTask(QObject):
 
     def _check_time(self):
         if monotonic() - self.started >= 2:
-            raise TimeoutError("Preview preparation exceeded two seconds")
+            raise TimeoutError(tr("Preview preparation exceeded two seconds"))
 
     def _prepare(self):
         live = self.project.mapLayers()
         affected = changed_ids(self.before, self.after)
         # Style/filter/visibility comparisons do not need expensive unrelated
         # providers. Order/group changes still require the complete stack.
-        focused = bool(affected) and self.before is not None and "layer order / groups" not in self.payload["summary"]
+        focused = bool(affected) and self.before is not None and _tree_parts(self.before["tree"])[0] == _tree_parts(self.after["tree"])[0]
         if focused:
             for key in affected:
                 old = self.before["layers"].get(key)
@@ -122,31 +183,23 @@ class PreviewTask(QObject):
                 self._check_time()
                 source = live.get(key)
                 if source is None:
-                    notes.append("Missing source: " + saved["name"])
+                    notes.append(tr("Missing source: ") + saved["name"])
                     continue
                 layer = source.clone()
                 if layer is None or not layer.isValid():
-                    notes.append("Unavailable source: " + saved["name"])
+                    notes.append(tr("Unavailable source: ") + saved["name"])
                     continue
                 clones[key] = layer
                 QgsMapLayerStyle(saved["style"]).writeToLayer(layer)
                 if isinstance(layer, (QgsVectorLayer, QgsPointCloudLayer)):
                     if layer.subsetString() != saved["filter"] and not layer.setSubsetString(saved["filter"]):
-                        notes.append("Filter unavailable: " + saved["name"])
+                        notes.append(tr("Filter unavailable: ") + saved["name"])
                         del clones[key]
-        samples = []
-        for key in affected:
-            self._check_time()
-            old = legend_samples(self.layers["before"].get(key), self._check_time)
-            new = legend_samples(self.layers["after"].get(key), self._check_time)
-            source = self.after["layers"].get(key) or self.before["layers"][key]
-            for label in sorted(old.keys() | new.keys()):
-                if old.get(label) != new.get(label):
-                    samples.append({"label": source["name"] + (": " + label[0] if label[0] else ""),
-                                    "before": old.get(label), "after": new.get(label)})
-        self.payload["samples"], self.payload["more"] = samples[:2], max(0, len(samples) - 2)
         settings = self.canvas.mapSettings()
-        extent = QgsRectangle(*self.after["extent"])
+        prepared, warning = prepare_view(self.project, self.canvas, self.after)
+        if prepared is None:
+            raise ValueError(warning)
+        extent = prepared[0]
         focus = "Saved map view with layer context"
         # Prefer one real feature neighborhood over a huge project/layer extent.
         # Explicitly label it representative; this is not geometry change detection.
@@ -182,7 +235,7 @@ class PreviewTask(QObject):
         self.payload["extent"] = [extent.xMinimum(), extent.yMinimum(), extent.xMaximum(), extent.yMaximum()]
         self._check_time()
         if extent.isEmpty() or not extent.isFinite():
-            raise ValueError("Map preview unavailable: empty extent")
+            raise ValueError(tr("Map preview unavailable: empty extent"))
         for side, state in (("before", self.before), ("after", self.after)):
             if state is None:
                 continue
@@ -201,22 +254,38 @@ class PreviewTask(QObject):
         _main_thread()
         _RUNNING.add(self)
         self.started = monotonic()
+        self.render_started = None
         try:
+            self.payload = lightweight_preview(self.before, self.after)
+            self.payload["timings_ms"] = {"symbols": (monotonic() - self.started) * 1000}
+            if not self.render_maps:
+                self._publish()
+                self._release()
+                return
+            self.started = monotonic()
             self._prepare()
+            self.payload["timings_ms"]["preparation"] = (monotonic() - self.started) * 1000
+            self.render_started = monotonic()
             self.timer.start(max(1, int((2 - (monotonic() - self.started)) * 1000)))
             for job in self.jobs:
                 job.start()
         except TimeoutError:
+            self.payload.setdefault("timings_ms", {})["preparation"] = (monotonic() - self.started) * 1000
             self._timeout()
         except Exception as exc:
-            self.cancel("Preview unavailable: " + str(exc))
+            self.payload.setdefault("timings_ms", {})["preparation"] = (monotonic() - self.started) * 1000
+            self.cancel(tr("Preview unavailable: ") + str(exc))
 
     def _publish(self):
+        if self.render_started is not None:
+            self.payload.setdefault("timings_ms", {})["render"] = (monotonic() - self.render_started) * 1000
         callback, self.callback = self.callback, None
         if callback is not None:
             callback(self.payload)
 
     def _finished(self, side, job):
+        if self.released:
+            return  # A queued finished signal may follow asynchronous cancellation.
         self.finished_jobs.add(job)
         if not self.cancelled and monotonic() - self.started >= 2:
             self._timeout()
@@ -231,12 +300,13 @@ class PreviewTask(QObject):
         if len(self.finished_jobs) == len(self.jobs):
             self.timer.stop()
             if not self.cancelled:
-                self.payload["status"] = "Saved preview"
+                self.payload["status"] = tr("Saved preview")
                 self._publish()
             self._release()
 
     def _timeout(self):
-        self.cancel("thumbnails disabled: project is heavy")
+        self.payload["slow"] = True
+        self.cancel(tr("Map preview timed out; symbol samples and details remain available"))
 
     def cancel(self, reason="Preview interrupted by a newer checkpoint", *, discard=False):
         self.cancelled = True

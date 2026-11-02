@@ -1,0 +1,38 @@
+name: Checkpoint checks
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      qgis:
+        description: 'Also run QGIS smoke checks on a prepared QGIS runner'
+        type: boolean
+        default: false
+jobs:
+  python-and-package:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ['3.10', '3.12', '3.14']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '${{ matrix.python }}'
+      - run: python -m pip install -r requirements-dev.txt
+      - run: python -m pytest -q
+      - run: python scripts/package.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: checkpoint-python-${{ matrix.python }}
+          path: dist/checkpoint-*.zip*
+  qgis-runtime:
+    if: github.event_name == 'workflow_dispatch' && inputs.qgis
+    runs-on: [self-hosted, qgis]
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/package.py
+      # The runner's python3 must import QGIS/Qt and its providers successfully.
+      - run: python3 scripts/run_qgis_checks.py --package dist/checkpoint-0.2.0.zip
+        env:
+          QT_QPA_PLATFORM: offscreen

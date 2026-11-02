@@ -70,6 +70,12 @@ def run():
         QTest.qWait(2100)
         assert len(saves) == 6, "Watcher did not resume after restore failure"
 
+        project.layerTreeRoot().addGroup("Expansion test")
+        watcher.acknowledge(False)
+        project.layerTreeRoot().findGroup("Expansion test").setExpanded(False)
+        QTest.qWait(2200)
+        assert len(saves) == 6, "Expanding a group alone created a checkpoint"
+
         layer.setOpacity(0.2)
         watcher.close()
         QTest.qWait(2100)

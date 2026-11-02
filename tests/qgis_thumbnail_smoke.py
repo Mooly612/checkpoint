@@ -196,14 +196,16 @@ def run():
                 QTest.qWait(20)
             assert plugin.store.records[-1]["preview"] == saved_preview
 
-            # Off means no new image rendering or storage, including restore events.
+            # Off disables expensive maps; lightweight samples/details remain.
             panel.previews.setChecked(False)
-            with patch("checkpoint.plugin.PreviewTask", side_effect=AssertionError("Preview while disabled")):
+            with patch("checkpoint.core.thumbnail.QgsMapRendererParallelJob", side_effect=AssertionError("Map render while disabled")):
                 panel.save_button.click()
-                assert "preview" not in plugin.store.records[-1]
+                assert not plugin.store.records[-1]["preview"]["maps"]
+                assert plugin.store.records[-1]["preview"]["samples"]
                 panel.history.setCurrentRow(0)
                 panel.restore_button.click()
-                assert all("preview" not in r for r in plugin.store.records[-2:])
+                assert not plugin.store.records[-1]["preview"]["maps"]
+                assert plugin.store.records[-1]["preview"]["summary"]
             panel.previews.setChecked(True)
             panel._open_preview(panel.history.item(0))  # An old/missing artifact stays unavailable.
             assert panel._dialog is not None
@@ -217,7 +219,7 @@ def run():
                 task = plugin.preview_task
                 wait_for(lambda: plugin.preview_task is None, 3000)
                 assert plugin.settings.value("checkpoint/heavy/" + plugin.store.key, False, type=bool)
-                assert "project is heavy" in panel.preview_status.text()
+                assert "paused after a slow render" in panel.preview_status.text()
                 assert task in _RUNNING and task.layers, "Cancelled jobs lost their layers too early"
                 assert all(j.cancelled for j in StalledJob.instances)
                 for job in StalledJob.instances:
@@ -225,9 +227,9 @@ def run():
                 assert task not in _RUNNING
                 layer.setOpacity(0.2)
                 panel.save_button.click()
-                assert "preview" not in plugin.store.records[-1]
-            panel.previews.setChecked(False)
-            panel.previews.setChecked(True)
+                assert not plugin.store.records[-1]["preview"]["maps"]
+            panel.retry_button.click()
+            wait_for(lambda: plugin.preview_task is None)
             assert not plugin.settings.value("checkpoint/heavy/" + plugin.store.key, False, type=bool)
 
             # Closing a project/unloading cancels without waiting and discards callbacks.
@@ -236,9 +238,10 @@ def run():
                 layer.setOpacity(0.1)
                 panel.save_button.click()
                 task = plugin.preview_task
-                plugin.unload()
-                assert task in _RUNNING
                 project.clear()
+                assert plugin.store is None and plugin.preview_task is None
+                assert task in _RUNNING
+                plugin.unload()
                 for job in StalledJob.instances:
                     job.finish()
                 assert task not in _RUNNING

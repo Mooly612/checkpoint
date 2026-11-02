@@ -1,3 +1,5 @@
+> Historical 0.1 engineering note. Current behavior is documented in [reference.md](reference.md).
+
 # Milestone 6
 
 Open the standard QGIS Options dialog using **Settings…** in the dock, then select

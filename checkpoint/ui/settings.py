@@ -12,9 +12,9 @@ class OptionsPage(QgsOptionsPageWidget):
         self.changed = changed
         settings = QgsSettings()
         layout = QFormLayout(self)
-        self.previews = QCheckBox("Save previews", self)
+        self.previews = QCheckBox(self.tr("Save map previews"), self)
         self.previews.setChecked(settings.value("checkpoint/previews", True, type=bool))
-        self.view = QCheckBox("Restore map view", self)
+        self.view = QCheckBox(self.tr("Restore map view"), self)
         self.view.setChecked(settings.value("checkpoint/restore_view", True, type=bool))
         self.limit = QSpinBox(self)
         self.limit.setRange(1, 10000)
@@ -23,10 +23,12 @@ class OptionsPage(QgsOptionsPageWidget):
         self.interval.setRange(1, 86400)
         self.interval.setSuffix(" s")
         self.interval.setValue(settings.value("checkpoint/interval", 60, type=int))
+        self.previews.setToolTip(self.tr("Symbol samples and text are always available. Map preparation may be slow with remote providers."))
+        self.limit.setToolTip(self.tr("User pins and recovery entries are kept separately. Clean up completed recoveries from History in the dock."))
         layout.addRow(self.previews)
         layout.addRow(self.view)
-        layout.addRow("Unpinned history limit", self.limit)
-        layout.addRow("Default automatic interval", self.interval)
+        layout.addRow(self.tr("Ordinary history limit"), self.limit)
+        layout.addRow(self.tr("Default automatic interval"), self.interval)
 
     def apply(self):
         settings = QgsSettings()

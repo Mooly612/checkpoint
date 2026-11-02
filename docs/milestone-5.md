@@ -1,3 +1,5 @@
+> Historical 0.1 engineering note. Current behavior is documented in [reference.md](reference.md).
+
 # Milestone 5: change-focused previews
 
 The history dock now has a persistent **Previews** checkbox. New checkpoints get

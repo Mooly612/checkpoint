@@ -38,7 +38,7 @@ class PreviewDialog(QDialog):
     def __init__(self, record, parent=None):
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-        self.setWindowTitle("Checkpoint: before / after")
+        self.setWindowTitle(self.tr("Checkpoint: historical before / after"))
         QGridLayout(self)
         self.set_record(record)
 
@@ -55,7 +55,7 @@ class PreviewDialog(QDialog):
         heading.setWordWrap(True)
         layout.addWidget(heading, 0, 0, 1, 2)
         for col, side in enumerate(("before", "after")):
-            layout.addWidget(QLabel(side.title(), self), 1, col)
+            layout.addWidget(QLabel(self.tr("Before") if side == "before" else self.tr("After"), self), 1, col)
             label = QLabel(self)
             label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             image = pixmap(preview.get("maps", {}).get(side))
@@ -64,26 +64,27 @@ class PreviewDialog(QDialog):
                 label.setPixmap(image)
                 label.setMinimumSize(image.size())
             else:
-                label.setText("No previous state" if side == "before" and preview.get("summary") == "Initial checkpoint"
-                              else "No saved map preview")
+                label.setText(self.tr("No previous state") if side == "before" and preview.get("summary") == "Initial checkpoint"
+                              else self.tr("No saved map preview"))
             if image.isNull():
                 label.setMinimumSize(400, 260)
             layout.addWidget(label, 2, col)
         note = QLabel(self)
         note.setTextFormat(Qt.TextFormat.PlainText)
         note.setWordWrap(True)
-        note.setText(preview.get("status", "Preview unavailable: this checkpoint has no saved preview.")
-                     + "\n" + preview.get("note", "New checkpoints get previews when Previews is enabled.")
+        note.setText(preview.get("status", self.tr("Preview unavailable: this checkpoint has no saved preview."))
+                     + "\n" + preview.get("note", self.tr("Use Retry maps to capture a new entry with current data."))
+                     + "\n" + self.tr("Historical images captured with data available then. These are not a simulation of applying this entry to the current project.")
                      + "\n" + preview.get("summary", ""))
         layout.addWidget(note, 3, 0, 1, 2)
         sample_text = [s["label"] for s in preview.get("samples", [])]
         if preview.get("more"):
             sample_text.append(f"+{preview['more']} other symbol changes")
         if sample_text:
-            label = QLabel("Symbol samples: " + "; ".join(sample_text), self)
+            label = QLabel(self.tr("Symbol samples: ") + "; ".join(sample_text), self)
             label.setTextFormat(Qt.TextFormat.PlainText)
             label.setWordWrap(True)
             layout.addWidget(label, 4, 0, 1, 2)
-        close = QPushButton("Close", self)
+        close = QPushButton(self.tr("Close"), self)
         close.clicked.connect(self.close)
         layout.addWidget(close, 5, 1)

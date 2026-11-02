@@ -6,7 +6,7 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 import runpy
 
-from qgis.core import QgsProject, QgsRectangle, QgsVectorLayer
+from qgis.core import QgsProject, QgsRectangle, QgsVectorLayer, QgsCoordinateReferenceSystem
 from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtTest import QTest
 
@@ -33,6 +33,7 @@ def run():
     with TemporaryDirectory(prefix="checkpoint-restore-") as directory:
         plugin.root = Path(directory) / "history"
         try:
+            iface.canvas.setDestinationCrs(QgsCoordinateReferenceSystem("EPSG:4326"))
             plugin.initGui()
             panel = plugin.panel
             panel.previews.setChecked(False)
@@ -53,16 +54,15 @@ def run():
             panel.mode.setCurrentText("Auto")
             panel.restore_button.click()
             assert layer.opacity() == 1.0
-            safety = next(r for r in plugin.store.records if r["name"] == "before restore")
-            assert safety["pinned"] and safety["state"] == before
+            safety = next(r for r in plugin.store.records if r.get("kind") == "recovery")
+            assert not safety["pinned"] and safety["state"] == before
             assert not plugin.store.records[-1]["pinned"]
-            assert "Restored" in plugin.store.records[-1]["description"]
-            assert plugin.store.records[0] == target
+            assert "Applied" in plugin.store.records[-1]["description"]
+            assert plugin.store.records[0]["state"] == target["state"]
             count = len(plugin.store.records)
             QTest.qWait(2300)
             assert len(plugin.store.records) == count, "Restore signals created an Auto entry"
-            select(panel, safety)
-            panel.restore_button.click()
+            panel.undo_button.click()
             assert layer.opacity() == 0.4
             restored_view = capture(project, iface.canvas)
             assert math.isclose(restored_view["scale"], before["scale"], rel_tol=1e-6)
@@ -102,7 +102,7 @@ def run():
             with patch.object(plugin.store, "_commit", side_effect=fail_result):
                 panel.restore_button.click()
             assert layer.opacity() == 1.0
-            assert plugin.store.records[-1]["pinned"]
+            assert plugin.store.records[-1]["kind"] == "recovery"
             assert "result could not be recorded" in iface.bar.currentItem().title()
             assert HistoryStore(plugin.root, project.fileName()).records == plugin.store.records
             QTest.qWait(50)
@@ -119,7 +119,7 @@ def run():
 
             with patch("checkpoint.plugin.restore", side_effect=partial_failure):
                 panel.restore_button.click()
-            assert any(r["pinned"] and r["state"]["layers"][layer.id()]["style"] == before["layers"][layer.id()]["style"] for r in plugin.store.records)
+            assert any(r.get("kind") == "recovery" and r["state"]["layers"][layer.id()]["style"] == before["layers"][layer.id()]["style"] for r in plugin.store.records)
             assert "Provider failed" in iface.bar.currentItem().text()
             QTest.qWait(50)
             assert plugin.watcher._suppression == 0 and not plugin._busy

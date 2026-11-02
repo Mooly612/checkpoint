@@ -1,3 +1,4 @@
+import configparser
 from pathlib import Path
 import runpy
 from zipfile import ZipFile
@@ -14,8 +15,15 @@ def test_release_archive_is_complete_and_reproducible(tmp_path):
         assert archive.testzip() is None
         assert {"checkpoint/__init__.py", "checkpoint/plugin.py", "checkpoint/metadata.txt",
                 "checkpoint/icon.svg", "checkpoint/LICENSE", "checkpoint/README.md",
-                "checkpoint/ui/settings.py", "checkpoint/core/thumbnail.py"} <= names
+                "checkpoint/ui/settings.py", "checkpoint/core/thumbnail.py",
+                "checkpoint/demo/checkpoint-demo.qgz", "checkpoint/demo/roads.geojson",
+                "checkpoint/demo/buildings.geojson"} <= names
+        metadata = configparser.ConfigParser()
+        metadata.read_string(archive.read("checkpoint/metadata.txt").decode())
+        assert metadata["general"]["qgisMinimumVersion"] == "3.44"
+        assert metadata["general"]["qgisMaximumVersion"] == "3.99"
+        assert not metadata["general"].getboolean("supportsQt6")
         assert all(name.startswith("checkpoint/") for name in names)
         assert not any(part in {"tests", "scripts", "__pycache__", ".git"}
                        for name in names for part in Path(name).parts)
-        assert not any(name.endswith((".pyc", ".qgz", ".json")) for name in names)
+        assert not any(name.endswith((".pyc", ".json")) for name in names)

@@ -15,12 +15,15 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def build(root=ROOT, output=None):
     root = Path(root)
-    output = Path(output) if output else root / "dist" / "checkpoint.zip"
     metadata = configparser.ConfigParser(interpolation=None)
     metadata.read(root / "checkpoint" / "metadata.txt", encoding="utf-8")
     for key in ("name", "version", "qgisMinimumVersion", "author", "email", "repository", "icon"):
         if not metadata.get("general", key, fallback="").strip():
             raise ValueError("Missing metadata: " + key)
+    version = metadata["general"]["version"]
+    if not all(character.isalnum() or character in ".-_" for character in version):
+        raise ValueError("Invalid version for archive filename")
+    output = Path(output) if output else root / "dist" / f"checkpoint-{version}.zip"
     files = {}
     for path in sorted((root / "checkpoint").rglob("*")):
         relative = path.relative_to(root / "checkpoint")
@@ -42,6 +45,11 @@ def build(root=ROOT, output=None):
     for path in sorted((root / "docs" / "images").glob("*")):
         if path.suffix in {".png", ".svg"} and path.is_file():
             files["checkpoint/docs/images/" + path.name] = path.read_bytes()
+    for path in sorted((root / "demo").glob("*")):
+        if path.is_symlink():
+            raise ValueError("Demo assets must not be symlinks")
+        if path.is_file() and path.suffix in {".md", ".geojson", ".qgz"}:
+            files["checkpoint/demo/" + path.name] = path.read_bytes()
     for required in ("__init__.py", "plugin.py", metadata["general"]["icon"]):
         if "checkpoint/" + required not in files:
             raise ValueError("Missing plugin file: " + required)

@@ -1,3 +1,5 @@
+> Historical 0.1 engineering note. Current behavior is documented in [reference.md](reference.md).
+
 # Milestone 7: experimental release build
 
 Version: 0.1.0. All seven implementation milestones are complete. This milestone

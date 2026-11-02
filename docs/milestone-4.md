@@ -1,3 +1,5 @@
+> Historical 0.1 engineering note. Current behavior is documented in [reference.md](reference.md).
+
 # Milestone 4: restore flow
 
 The dock uses an explicit Restore button. Row selection only chooses its target;

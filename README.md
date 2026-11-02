@@ -1,170 +1,109 @@
 # Checkpoint
 
-*Undo for your map styling.*
+Local styling history for QGIS users who experiment with the appearance of several
+layers at once. Keep a starting point, change symbols, labels or filters, inspect
+what an earlier checkpoint would apply, then apply it and undo that application.
+Checkpoint saves style XML, filters, the layer tree and the map view. It does not
+back up geometry, attributes, data sources or project files.
 
-A small QGIS plugin for trying different looks without losing the one you liked.
-Save a checkpoint, change your map, and come back to it later.
+QGIS already offers per-layer styling history and editing Undo/Redo. Map Themes
+provide named presentation variants and reference named styles; changing a
+referenced style also changes that theme. Checkpoint stores the style XML at each
+checkpoint and applies a snapshot across existing layers.
+[QGIS styling history](https://docs.qgis.org/3.44/en/docs/user_manual/introduction/general_tools.html#layer-styling-panel),
+[Map Themes](https://docs.qgis.org/3.44/en/docs/user_manual/introduction/general_tools.html#map-themes).
 
-Checkpoint remembers styles, filters, layer order, groups, visibility, and map view.
-It doesn't save copies of your data or project files. Keep saving your project as usual.
+## Install and try it
 
-## What it looks like
+This is **0.2.0, an experimental local build**. No release has been published.
+The prepared artifact is `dist/checkpoint-0.2.0.zip`, with a `.zip.sha256` sidecar.
+To build it from this checkout, run `python3 scripts/package.py`.
 
-![Example: save blue roads and visible buildings, try red roads and hidden buildings, then restore the saved look](docs/images/restore-example.svg)
+1. In QGIS, open **Plugins → Manage and Install Plugins → Install from ZIP** and
+   choose `checkpoint-0.2.0.zip`. Enable Checkpoint. Restart QGIS after updating.
+2. Open a project. Checkpoint creates a starting point after loading completes.
+   Check the panel status before editing. An empty project waits for its layers.
+3. Change the appearance of two layers. **Auto** saves after a 2-second pause in
+   styling changes, respecting the minimum gap between saves (60 seconds by
+   default). In **Manual**, click **Save checkpoint**.
+4. Select the starting point. Read **Changes relative to the current project**:
+   it describes all affected layers, filters, visibility, groups and the view.
+5. Click **Apply saved map styling**. Click **Undo last application** to return
+   to the state immediately before it.
 
-You had blue roads and visible buildings. You made the roads red and hid the
-buildings, but preferred the earlier version. Select that checkpoint and click
-**Restore selected checkpoint**. The blue roads and buildings come back.
+![Two-layer styling change and the selected checkpoint's application scope](docs/images/history.png)
 
-Your red-road version is kept as **before restore**. Restore that entry if you
-change your mind again.
+This image comes from real QGIS 3.44.8 / Qt5 widgets in an isolated test window.
+It is not a mockup or a screenshot of the user's desktop. The small
+[demo project](demo/checkpoint-demo.qgz) contains synthetic roads, buildings and
+labels. [Demo instructions and data provenance](demo/README.md).
 
-**Restore applies the whole saved styling state**, not just the change named in
-one history row. It doesn't undo edits to geometry or attributes, and it can't
-bring back a deleted layer. Clicking a row only opens its preview.
+## What selection, Apply and Preview mean
 
-## Install
+Selecting a row changes neither the map nor opens a window. The inline details
+compare the selected snapshot with the current project. The row's description
+records what changed historically; it does not limit the scope of Apply.
 
-There isn't a published release download yet. To build the ZIP, clone this repo
-and run this command from its folder. Python 3 is enough; QGIS isn't needed to build it.
+**Preview** opens saved historical before/after images. They use data available
+when captured and may show a representative neighborhood. They are not an
+up-to-date simulation of applying the checkpoint to today's data.
 
-```sh
-git clone https://github.com/Mooly612/checkpoint.git
-cd checkpoint
-python3 scripts/package.py
-```
+**Save map previews** controls expensive map rendering. Symbol samples and text
+remain available with it off. If a render times out, **Retry maps** creates a fresh
+checkpoint with current data. Existing saved images are never replaced. Two
+seconds is a soft rendering/preparation budget; synchronous provider calls can
+exceed it.
 
-In QGIS, open **Plugins → Manage and Install Plugins → Install from ZIP**, choose
-`dist/checkpoint.zip`, then enable **Checkpoint**. No extra Python packages needed.
+## Recovery and retention
 
-The panel opens on the right. Use the toolbar icon or Plugins menu to reopen it.
-Restart QGIS after updating the plugin.
+Apply first stores a recovery state. If that write fails, the map is untouched.
+A provider can fail during application, leaving partial changes; the recovery
+state and Undo remain available within the same styling contract.
 
-Already using a development symlink? Just restart QGIS after updating the source.
-Don't install the ZIP over the symlink. [More installation notes](docs/install.md).
+User **Pin / Unpin** controls ordinary retention. Automatic records are labeled
+**Recovery** and linked to an application, without becoming user pins. Under
+**History… → Clean up completed recoveries…**, keep the latest 10 recoveries,
+all unresolved or partial ones, and every pin. Cleanup is explicit. Old
+`before restore` pins remain pinned. Recovery and pins can therefore grow without
+bound until you review them. The ordinary history limit defaults to 20.
 
-## Everyday use
+## Where history lives
 
-Start by clicking **Save checkpoint** before making changes.
+Saved history is local to your QGIS profile in
+`checkpoint/<hash-of-project-path>/history.sqlite3`. Unsaved projects keep history
+only in memory and lose it when closed. Normal project saving persists that
+memory history. Save As offers **Continue with a copy** or **Start new history**;
+an existing destination history is never silently merged or overwritten.
 
-- **Auto** saves after styling changes settle. The default 60 seconds is the
-  minimum gap between saves, not a timer that saves the same map repeatedly.
-- **Manual** saves only when you click the button. The button also works in Auto.
-- **Pin / Unpin** keeps a useful checkpoint from expiring.
-- **Rename** gives it a name you can find later, such as “Before changing labels”.
-- **Delete** removes it after confirmation.
+Moving the file outside QGIS does not move its history. Sending a `.qgz` to someone
+else does not send the history. **History… → Export history…** saves a JSON archive
+for inspection/archival. Import and automatic remapping across projects are not
+supported in 0.2.0; names alone cannot safely identify layers. Use Save As inside
+QGIS to continue a history at a new path.
 
-Unchanged styling isn't saved twice. Panning and zooming alone don't create entries.
-Restore deliberately saves both the state before it and the result.
-Closing the panel doesn't stop Auto; switch to Manual if you want to pause it.
+## Limits and compatibility
 
-## Seeing what changed
+Deleted layer IDs are skipped. Later layers remain; saved parent visibility may
+still hide them. Group names, nesting, mutually exclusive selection and native
+serialized group properties are retained. Group layers and custom/embedded tree
+constructs are rejected before application. Legacy snapshots without group
+identities keep the current tree. Views without a known saved CRS are skipped
+with a notice; styles can still be applied. A CRS change transforms the saved
+center and keeps the saved scale, without changing the project CRS.
 
-Small symbol samples show **before → after**, so a change to a few points can
-still be seen without fitting the whole project into a thumbnail. Click a row
-for the saved map comparison. Restore is a separate button.
-
-![History with symbol samples](docs/images/history.png)
-
-![Map comparison showing a change in point opacity](docs/images/comparison.png)
-
-These are screenshots from the QGIS tests. They show the preview UI before the
-Pin, Rename, Delete, and Settings buttons were added. The map above is deliberately
-a small point example; it isn't a full project screenshot.
-
-A map preview focuses on one representative feature in an affected layer. It may
-not show every change spread across a large project. Filters, visibility, and
-labels often need the map comparison rather than a symbol sample.
-
-If you see **“thumbnails disabled: project is heavy”**, rendering hit its two-second
-limit. Toggle **Previews** off and on, then create a new checkpoint. Old empty
-previews aren't rebuilt. You can also leave previews off and use the text history.
-Slow remote sources may still delay preparation; WMS/XYZ images can be incomplete.
-
-## Settings
-
-Click **Settings…**, then select **Checkpoint** in QGIS Options.
-
-| Setting | Default |
-| --- | --- |
-| Save previews | On |
-| Restore map view | On; turn it off to keep your current zoom and position |
-| Unpinned history limit | 20 entries |
-| Default automatic interval | 60 seconds |
-
-Lowering the history limit removes older unpinned entries immediately. Pinned
-entries stay until you unpin or delete them, including the **before restore** entries.
-
-## Things to know
-
-History stays in your QGIS profile, under `checkpoint/`, not beside or inside the
-project file. An unsaved project's history is only in memory until you save it.
-Close it before saving and that history is gone.
-
-History is tied to the project path. Moving or renaming a saved project, or using
-Save As, doesn't carry its old history to the new path.
-
-Deleted layers are skipped with a message. Later-added layers keep their styling,
-although changing a parent group's visibility can still hide them. Memory-layer
-features aren't backed up. CRS, layouts, project settings, custom layer order,
-and Map Themes aren't restored.
-
-If Checkpoint can't save the before-restore entry, it won't apply the restore.
-If a provider fails partway through, some changes may already be applied. The
-message explains what happened; the pinned **before restore** entry remains
-available. Checkpoint doesn't automatically roll back a failed restore.
-
-Previews are saved images, not live views. Old entries without images stay that
-way. Disabling previews stops new image capture but doesn't delete existing ones.
-There is no telemetry or cloud sync. Remote QGIS layers can still access their
+Layouts, Map Themes, custom drawing order, source data and project settings are
+outside the restoration contract. Continue saving and backing up the project.
+There is no telemetry, account or cloud service. QGIS providers may contact their
 sources while rendering.
 
-## Does this replace QGIS undo?
+Verified locally: **QGIS 3.44.8 / Qt 5.15.18 / Python 3.12.11 on macOS**.
+The metadata targets QGIS 3.44–3.x with Qt5. Earlier versions are refused before
+application because the supported group-property APIs require 3.44. Other QGIS versions, Windows, Linux,
+Qt6 and QGIS4 have not been runtime-verified here; Qt6/QGIS4 are not advertised as
+supported. English is the only shipped UI language.
 
-For a single layer's styling, QGIS's own undo/redo may be all you need. Map Themes
-are useful for named presentation variants. Checkpoint is for keeping a history
-of changes across several layers, including their filters and tree positions.
-
-It's still experimental. The Restore wording, popup preview, and growing list of
-pinned recovery entries could be clearer. [Alternatives and usability notes](docs/usability.md).
-
-## Tests and compatibility
-
-Tested on **QGIS 3.44.8, Qt 5.15.18, Python 3.12.11, macOS**. The code targets QGIS
-3.28+ and 4.x, but those other runtimes haven't been tested yet. Large projects and
-remote providers need more testing, including the project that exposed the preview timeout.
-
-There are **44 Python tests and six QGIS test scripts**. Some examples:
-
-| Try this | Expected result |
-| --- | --- |
-| Save twice without changing anything | One checkpoint |
-| Change two layers, restore, then restore “before restore” | Both looks can be recovered |
-| Delete a layer, then restore an older checkpoint | A skipped-layer message; no recreated data |
-| Fail the write of the safety checkpoint | The map stays untouched |
-| Cancel Delete | The checkpoint stays |
-| Let preview rendering hang | Rendering is cancelled; history still works |
-
-Run the Python tests:
-
-```sh
-python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements-dev.txt
-.venv/bin/python -m pytest -q
-```
-
-With a Python environment that has QGIS available:
-
-```sh
-python3 scripts/package.py
-python3 scripts/run_qgis_checks.py --package dist/checkpoint.zip
-```
-
-On macOS with QGIS.app, use `/Applications/QGIS.app/Contents/MacOS/python` for the
-second command. The QGIS checks use a temporary profile and the extracted ZIP;
-they don't touch your open project.
-
-[Technical details](docs/reference.md) · [Architecture](docs/architecture.md) ·
-[Changelog](CHANGELOG.md) · [Report a bug](https://github.com/Mooly612/checkpoint/issues)
+[Installation](docs/install.md) · [Reference](docs/reference.md) ·
+[Validation and limitations](docs/validation-0.2.0.md) ·
+[Usability study plan](docs/usability.md) · [Changelog](CHANGELOG.md)
 
 By Alen Alimzhanov. [GPL-2.0-or-later](LICENSE).

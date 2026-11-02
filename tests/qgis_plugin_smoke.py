@@ -2,6 +2,7 @@
 
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from qgis.core import QgsProject, QgsRectangle, QgsVectorLayer
 from qgis.gui import QgsMapCanvas, QgsMessageBar
@@ -76,6 +77,7 @@ def run():
             panel.mode.setCurrentText("Manual")
             layer = QgsVectorLayer("Point?crs=EPSG:4326", "Roads", "memory")
             project.addMapLayer(layer)
+            iface.canvas.setDestinationCrs(layer.crs())
             iface.canvas.setExtent(QgsRectangle(0, 0, 10, 10))
             panel.save_button.click()
             assert len(plugin.store.records) == panel.history.count() == 1
@@ -103,9 +105,10 @@ def run():
 
             second_path = str(Path(directory) / "second.qgz")
             project.setFileName(second_path)
-            assert project.write()
+            with patch.object(plugin, "_choose_save_as", return_value="new"):
+                assert project.write()
             assert plugin.store.key == project_key(second_path)
-            assert plugin.store.records == []
+            assert len(plugin.store.records) == 1  # New project starting point
             assert HistoryStore(plugin.root, first_path).records == first_records
 
             # An in-flight Auto save must not write into the next project.

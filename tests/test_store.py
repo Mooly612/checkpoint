@@ -68,9 +68,10 @@ def test_migration_preserves_existing_history(tmp_path, variant):
     existing = saved.append(variant(1), pinned=True)
     memory = HistoryStore(saved.root)
     new = memory.append(variant(2))
-    memory.migrate(project)
-    assert memory.records == [existing, new]
-    assert HistoryStore(saved.root, project).records == [existing, new]
+    with pytest.raises(HistoryError, match="already has history"):
+        memory.migrate(project)
+    assert memory.records == [new] and not memory.saved
+    assert HistoryStore(saved.root, project).records == [existing]
 
 
 def test_pin_rename_unpin_delete_are_persisted(tmp_path, variant):
@@ -131,8 +132,9 @@ def test_unknown_record_raises(tmp_path, operation):
 @pytest.mark.parametrize("damage", ["json", "version", "state_hash", "state"])
 def test_corrupt_history_is_reported_without_overwriting(tmp_path, state, damage):
     store = HistoryStore(tmp_path, "/projects/map.qgz")
-    store.append(state)
-    payload = json.loads(store.path.read_text())
+    record = HistoryStore(tmp_path).append(state)
+    payload = {"version": 1, "records": [record]}
+    store.legacy_path.parent.mkdir(parents=True)
     if damage == "version":
         payload["version"] = 900
     elif damage == "state_hash":
@@ -140,10 +142,10 @@ def test_corrupt_history_is_reported_without_overwriting(tmp_path, state, damage
     elif damage == "state":
         del payload["records"][0]["state"]["tree"]
     content = "broken JSON" if damage == "json" else json.dumps(payload)
-    store.path.write_text(content)
+    store.legacy_path.write_text(content)
     with pytest.raises(HistoryError):
         HistoryStore(tmp_path, "/projects/map.qgz")
-    assert store.path.read_text() == content
+    assert store.legacy_path.read_text() == content
 
 
 def test_failed_atomic_write_keeps_disk_and_memory(tmp_path, variant, monkeypatch):
@@ -154,7 +156,7 @@ def test_failed_atomic_write_keeps_disk_and_memory(tmp_path, variant, monkeypatc
     def fail(*args):
         raise OSError("Disk full")
 
-    monkeypatch.setattr("checkpoint.core.store.os.replace", fail)
+    monkeypatch.setattr(HistoryStore, "_commit", fail)
     with pytest.raises(OSError, match="Disk full"):
         store.append(variant(2))
     assert store.records == old_records
@@ -170,7 +172,7 @@ def test_failed_migration_keeps_memory(tmp_path, state, monkeypatch):
     def fail(*args):
         raise OSError("Permission denied")
 
-    monkeypatch.setattr("checkpoint.core.store.os.replace", fail)
+    monkeypatch.setattr(HistoryStore, "_commit", fail)
     with pytest.raises(OSError):
         store.migrate("/projects/map.qgz")
     assert not store.saved
@@ -192,7 +194,7 @@ def test_restore_events_keep_exact_view_even_when_style_matches(tmp_path, state)
     moved.update(extent=[1, 2, 3, 4], scale=500)
     safety = store.append_restore(moved, before=True)
     result = store.append_restore(state, description="Restored: Initial checkpoint")
-    assert safety["pinned"] and safety["name"] == "before restore"
+    assert not safety["pinned"] and safety["kind"] == "recovery"
     assert safety["state"] == moved
     assert not result["pinned"] and result["state"] == state
     assert len({r["id"] for r in (original, safety, result)}) == 3
@@ -220,7 +222,7 @@ def test_failed_restore_record_write_preserves_history(tmp_path, variant, monkey
     def fail(*args):
         raise OSError("Disk full")
 
-    monkeypatch.setattr("checkpoint.core.store.os.replace", fail)
+    monkeypatch.setattr(HistoryStore, "_commit", fail)
     with pytest.raises(OSError, match="Disk full"):
         store.append_restore(variant(2), before=before)
     assert store.records == old_records
@@ -251,7 +253,7 @@ def test_preview_write_failure_does_not_damage_checkpoint(tmp_path, state, monke
     old_file = store.path.read_bytes()
     def fail(*args):
         raise OSError("Disk full")
-    monkeypatch.setattr("checkpoint.core.store.os.replace", fail)
+    monkeypatch.setattr(HistoryStore, "_commit", fail)
     with pytest.raises(OSError):
         store.set_preview(record["id"], {"maps": {"after": "jpeg"}})
     assert store.records == [record]

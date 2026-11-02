@@ -11,6 +11,8 @@ from zipfile import ZipFile
 ROOT = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--package", type=Path)
+parser.add_argument("--demo", action="store_true", help="Generate synthetic project and real widget screenshots")
+parser.add_argument("--only", nargs="+", help="Smoke filenames without .py")
 args = parser.parse_args()
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 mac = Path("/Applications/QGIS.app/Contents")
@@ -45,11 +47,22 @@ with TemporaryDirectory(prefix="checkpoint-checks-") as directory:
         assert Path(checkpoint.__file__).resolve().is_relative_to(source.resolve())
         from qgis.PyQt.QtSvg import QSvgRenderer
         assert QSvgRenderer(str(source / "checkpoint/icon.svg")).isValid()
-        print("Runtime:", Qgis.QGIS_VERSION, "Qt", QT_VERSION_STR, flush=True)
+        print("Runtime:", Qgis.QGIS_VERSION, "Qt", QT_VERSION_STR, "Python", sys.version.split()[0], flush=True)
         print("Plugin:", checkpoint.__file__, flush=True)
         for name in ("qgis_settings_smoke.py", "qgis_smoke.py", "qgis_watcher_smoke.py",
-                     "qgis_plugin_smoke.py", "qgis_restore_smoke.py", "qgis_thumbnail_smoke.py"):
+                     "qgis_plugin_smoke.py", "qgis_restore_smoke.py", "qgis_thumbnail_smoke.py", "qgis_regression_smoke.py", "qgis_demo_smoke.py", "qgis_reopen_smoke.py"):
+            if args.only and Path(name).stem not in args.only:
+                continue
             print("Running", name, flush=True)
             runpy.run_path(str(ROOT / "tests" / name), run_name="__main__")
+        if args.demo:
+            runpy.run_path(str(ROOT / "scripts/create_demo.py"), run_name="__main__")
     finally:
+        from checkpoint.core.thumbnail import _RUNNING
+        from qgis.PyQt.QtTest import QTest
+        for _ in range(150):
+            if not _RUNNING:
+                break
+            QTest.qWait(20)
+        assert not _RUNNING, "Preview resources still in use at QGIS shutdown"
         app.exitQgis()

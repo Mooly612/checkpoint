@@ -31,10 +31,10 @@ with TemporaryDirectory() as directory:
             plugin.panel.rename_button.click()
         assert plugin.store.records[0]['name'] == 'Named'
         with patch('checkpoint.plugin.QMessageBox.question', return_value=QMessageBox.StandardButton.No):
-            plugin.panel.delete_button.click()
+            plugin.panel.delete_button.trigger()
         assert len(plugin.store.records) == 1
         with patch('checkpoint.plugin.QMessageBox.question', return_value=QMessageBox.StandardButton.Yes):
-            plugin.panel.delete_button.click()
+            plugin.panel.delete_button.trigger()
         assert not plugin.store.records
         page.limit.setValue(20)
         page.interval.setValue(60)

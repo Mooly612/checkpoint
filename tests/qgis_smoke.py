@@ -30,6 +30,7 @@ def run():
         root.removeChildNode(old)
         group.setExpanded(False)
         group.setItemVisibilityChecked(False)
+        canvas.setDestinationCrs(roads.crs())
         canvas.setLayers([roads, parcels])
         # Use an explicit nonempty view even though these memory layers are empty.
         canvas.setExtent(QgsRectangle(0, 0, 10, 10))

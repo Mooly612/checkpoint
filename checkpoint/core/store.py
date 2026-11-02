@@ -1,173 +1,301 @@
-"""Atomic JSON history, bounded unpinned entries, and in-memory projects."""
-
+"""Transactional local history. Legacy JSON is imported once and never overwritten."""
 from __future__ import annotations
+from ..i18n import tr
 
+from contextlib import contextmanager, closing
 from copy import deepcopy
 from datetime import datetime, timezone
 import hashlib
 import json
 import os
 from pathlib import Path
-import tempfile
+import sqlite3
 from uuid import uuid4
 
 from .differ import component_hashes, describe, digest
 
 
 class HistoryError(ValueError):
-    """Stored history is unreadable or uses an unsupported format."""
+    """History cannot be read or changed safely."""
 
 
 def project_key(project_path: str) -> str:
-    """Hash the absolute file path, without following symlinks."""
     if not project_path:
-        raise ValueError("A saved project needs a path")
-    path = os.path.abspath(os.path.expanduser(project_path))
-    return hashlib.sha256(os.fsencode(path)).hexdigest()
+        raise ValueError(tr("A saved project needs a path"))
+    return hashlib.sha256(os.fsencode(os.path.abspath(os.path.expanduser(project_path)))).hexdigest()
+
+
+def _json(value):
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+
+
+def validate_records(records):
+    if not isinstance(records, list):
+        raise HistoryError(tr("Invalid history records"))
+    seen = set()
+    for record in records:
+        for field in ("id", "created_at", "description", "name", "state_hash"):
+            if not isinstance(record[field], str):
+                raise HistoryError(tr("Invalid record field: ") + field)
+        if type(record["pinned"]) is not bool or record["id"] in seen:
+            raise HistoryError(tr("Invalid pin or duplicate record ID"))
+        seen.add(record["id"])
+        components = component_hashes(record["state"])
+        if components != record["components"] or digest(components) != record["state_hash"]:
+            raise HistoryError(tr("Snapshot hash mismatch"))
+    return records
 
 
 class HistoryStore:
-    """The caller supplies QgsApplication's settings directory / checkpoint."""
+    """All mutations read the current state AFTER acquiring SQLite's write lock.
 
+    A 150 ms busy timeout bounds lock contention, not filesystem/provider I/O.
+    Deleted records raise KeyError on update; no operation recreates them.
+    Each row is independent, so preview/pin updates do not rewrite other images.
+    """
     def __init__(self, root: Path, project_path: str = "", limit: int = 20):
         self.root = Path(root)
         self._validate_limit(limit)
-        self.limit = limit
-        self.saved = bool(project_path)
+        self.limit, self.saved = limit, bool(project_path)
         self.key = project_key(project_path) if self.saved else "temporary-" + uuid4().hex
+        self._connection, self._revision = None, None
         self._records = self._read() if self.saved else []
 
     @property
-    def records(self) -> list[dict]:
-        """Return detached data so callers cannot accidentally mutate history."""
+    def records(self):
         return deepcopy(self._records)
 
     @property
-    def path(self) -> Path:
-        return self.root / self.key / "history.json"
+    def path(self):
+        return self.root / self.key / "history.sqlite3"
+
+    @property
+    def legacy_path(self):
+        return self.path.with_name("history.json")
 
     @staticmethod
-    def _validate_limit(limit: int):
+    def _validate_limit(limit):
         if type(limit) is not int or limit < 1:
-            raise ValueError("Buffer size must be a positive integer")
+            raise ValueError(tr("Buffer size must be a positive integer"))
 
-    def _read(self) -> list[dict]:
-        if not self.path.exists():
+    def _legacy(self):
+        if not self.legacy_path.exists():
             return []
+        payload = json.loads(self.legacy_path.read_text(encoding="utf-8"))
+        if payload["version"] != 1:
+            raise HistoryError(tr("Unsupported legacy history format"))
+        return validate_records(payload["records"])
+
+    def _load(self, db):
+        version = db.execute("PRAGMA user_version").fetchone()[0]
+        if version != 2:
+            raise HistoryError(tr("Unsupported database format"))
+        self.limit = int(db.execute("SELECT value FROM settings WHERE key='limit'").fetchone()[0])
+        self._validate_limit(self.limit)
+        row = db.execute("SELECT value FROM settings WHERE key='revision'").fetchone()
+        revision = int(row[0]) if row else 0
+        if self._revision == revision and hasattr(self, "_records"):
+            return self._records
+        records = validate_records([json.loads(row[0]) for row in db.execute(
+            "SELECT payload FROM records ORDER BY position")])
+        self._revision = revision
+        return records
+
+    def _read(self):
         try:
-            payload = json.loads(self.path.read_text(encoding="utf-8"))
-            if payload["version"] != 1 or not isinstance(payload["records"], list):
-                raise ValueError("Unsupported history format")
-            seen = set()
-            for record in payload["records"]:
-                for field in ("id", "created_at", "description", "name", "state_hash"):
-                    if not isinstance(record[field], str):
-                        raise ValueError("Invalid record field: " + field)
-                if type(record["pinned"]) is not bool or record["id"] in seen:
-                    raise ValueError("Invalid pin or duplicate record id")
-                seen.add(record["id"])
-                components = component_hashes(record["state"])
-                if components != record["components"] or digest(components) != record["state_hash"]:
-                    raise ValueError("Snapshot hash mismatch")
-            return payload["records"]
-        except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
+            if not self.path.exists():
+                return self._legacy()
+            # A failed first transaction can leave an empty database, but no schema.
+            with closing(sqlite3.connect(self.path, timeout=0.15)) as db:
+                db.execute("BEGIN")
+                if db.execute("PRAGMA user_version").fetchone()[0] == 0:
+                    return self._legacy()
+                return self._load(db)
+        except (sqlite3.Error, OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
             raise HistoryError(f"Cannot read history at {self.path}: {exc}") from exc
 
-    def _trim(self, records: list[dict], limit: int) -> list[dict]:
-        unpinned = [record["id"] for record in records if not record["pinned"]]
-        evict = set(unpinned[:-limit])
-        return [record for record in records if record["id"] not in evict]
-
-    def _commit(self, records: list[dict]):
-        """Replace atomically; preserve memory and the old file if writing fails."""
+    def refresh(self):
         if self.saved:
-            payload = json.dumps({"version": 1, "records": records}, ensure_ascii=False,
-                                 separators=(",", ":"), allow_nan=False)
-            self.path.parent.mkdir(parents=True, exist_ok=True)
-            temporary = None
-            try:
-                with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8",
-                                                 dir=self.path.parent, delete=False) as handle:
-                    temporary = Path(handle.name)
-                    handle.write(payload)
-                    handle.flush()
-                    os.fsync(handle.fileno())
-                os.replace(temporary, self.path)
-            finally:
-                if temporary is not None:
-                    temporary.unlink(missing_ok=True)
+            self._records = self._read()
+        return self.records
+
+    @contextmanager
+    def _transaction(self):
+        original, original_limit, original_revision = self._records, self.limit, self._revision
+        db = None
+        try:
+            if self.saved:
+                self.path.parent.mkdir(parents=True, exist_ok=True)
+                db = sqlite3.connect(self.path, timeout=0.15, isolation_level=None)
+                db.execute("BEGIN IMMEDIATE")
+                version = db.execute("PRAGMA user_version").fetchone()[0]
+                if version == 0:
+                    legacy = self._legacy()
+                    db.execute("CREATE TABLE records(id TEXT PRIMARY KEY, position INTEGER NOT NULL, payload TEXT NOT NULL)")
+                    db.execute("CREATE TABLE settings(key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+                    db.execute("INSERT INTO settings VALUES('limit', ?)", (str(self.limit),))
+                    db.executemany("INSERT INTO records VALUES(?,?,?)", [
+                        (r["id"], i, _json(r)) for i, r in enumerate(legacy)])
+                    db.execute("PRAGMA user_version=2")
+                db.execute("INSERT OR IGNORE INTO settings VALUES('revision', '0')")
+                self._records = self._load(db)
+                self._connection = db
+            yield
+            if db is not None:
+                db.commit()
+        except Exception as exc:
+            if db is not None:
+                db.rollback()
+            self._records, self.limit, self._revision = original, original_limit, original_revision
+            if isinstance(exc, sqlite3.Error):
+                raise HistoryError(tr("History unavailable (busy or storage error); retry: ") + str(exc)) from exc
+            raise
+        finally:
+            self._connection = None
+            if db is not None:
+                db.close()
+
+    def _trim(self, records, limit):
+        ordinary = [r["id"] for r in records if not r["pinned"] and r.get("kind") != "recovery"]
+        evict = set(ordinary[:-limit])
+        return [r for r in records if r["id"] not in evict]
+
+    def _commit(self, records):
+        """Called only inside a transaction. Touch only changed rows."""
+        db = self._connection
+        if db is not None:
+            old = {r["id"]: r for r in self._records}
+            new = {r["id"]: r for r in records}
+            db.executemany("DELETE FROM records WHERE id=?", [(key,) for key in old.keys() - new.keys()])
+            position = db.execute("SELECT COALESCE(MAX(position), -1) FROM records").fetchone()[0]
+            for record in records:
+                key = record["id"]
+                if key not in old:
+                    position += 1
+                    db.execute("INSERT INTO records VALUES(?,?,?)", (key, position, _json(record)))
+                elif record != old[key]:
+                    db.execute("UPDATE records SET payload=? WHERE id=?", (_json(record), key))
+            db.execute("UPDATE settings SET value=? WHERE key='limit'", (str(self.limit),))
+            self._revision = (self._revision or 0) + 1
+            db.execute("UPDATE settings SET value=? WHERE key='revision'", (str(self._revision),))
         self._records = records
 
-    def append(self, state: dict, *, pinned: bool = False, name: str = "",
-               description: str | None = None) -> dict | None:
-        """Skip an unchanged latest state, including view-only changes."""
-        return self._append(state, pinned=pinned, name=name, description=description)
+    def append(self, state, *, pinned=False, name="", description=None, force=False):
+        return self._append(state, pinned=pinned, name=name, description=description, force=force)
 
-    def append_restore(self, state: dict, *, before: bool = False,
-                       description: str | None = None) -> dict:
-        """Always record restore events, including their exact map view."""
-        return self._append(state, pinned=before,
-                            name="before restore" if before else "",
-                            description=description, force=True)
+    def append_restore(self, state, *, before=False, description=None, event_id=None, target=""):
+        return self._append(state, force=True, kind="recovery" if before else "application",
+                            event_id=event_id or uuid4().hex, target=target,
+                            name=("Recovery: " + target) if before else "", description=description,
+                            outcome="pending" if before else "complete")
 
-    def _append(self, state: dict, *, pinned=False, name="", description=None,
-                force=False) -> dict | None:
+    def _append(self, state, *, pinned=False, name="", description=None, force=False, **metadata):
         state = deepcopy(state)
         components = component_hashes(state)
         hashed = digest(components)
-        previous = self._records[-1] if self._records else None
-        if not force and previous and previous["state_hash"] == hashed:
-            return None
-        record = {
-            "id": uuid4().hex,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "state": state, "components": components, "state_hash": hashed,
-            "description": description if description is not None else describe(
-                previous["state"] if previous else None, state),
-            "pinned": bool(pinned), "name": name,
-        }
-        self._commit(self._trim(self._records + [record], self.limit))
+        with self._transaction():
+            previous = self._records[-1] if self._records else None
+            if not force and previous and previous["state_hash"] == hashed:
+                return None
+            record = dict(id=uuid4().hex, created_at=datetime.now(timezone.utc).isoformat(),
+                          state=state, components=components, state_hash=hashed,
+                          description=description if description is not None else describe(
+                              previous["state"] if previous else None, state),
+                          pinned=bool(pinned), name=name, **metadata)
+            self._commit(self._trim(self._records + [record], self.limit))
         return deepcopy(record)
 
-    def _update(self, record_id: str, **changes):
-        records = self.records
-        record = next((record for record in records if record["id"] == record_id), None)
-        if record is None:
-            raise KeyError(record_id)
-        record.update(changes)
-        self._commit(self._trim(records, self.limit))
+    def _update(self, record_id, **changes):
+        with self._transaction():
+            records = self.records
+            record = next((r for r in records if r["id"] == record_id), None)
+            if record is None:
+                raise KeyError(record_id)
+            record.update(changes)
+            self._commit(self._trim(records, self.limit))
 
-    def set_preview(self, record_id: str, preview: dict):
-        """Keep artifacts with their record, including through migration and eviction."""
-        self._update(record_id, preview=deepcopy(preview))
+    def set_preview(self, record_id, preview):
+        with self._transaction():
+            records = self.records
+            record = next((r for r in records if r["id"] == record_id), None)
+            if record is None:
+                raise KeyError(record_id)
+            # Published images never get overwritten, including by late callbacks.
+            if "preview" in record and record["preview"] != preview:
+                raise HistoryError(tr("Saved previews are immutable"))
+            record["preview"] = deepcopy(preview)
+            self._commit(records)
 
-    def set_pinned(self, record_id: str, pinned: bool):
+    def finish_recovery(self, record_id, outcome):
+        if outcome not in {"complete", "partial", "undone"}:
+            raise ValueError(tr("Unknown application outcome"))
+        self._update(record_id, outcome=outcome)
+
+    def set_pinned(self, record_id, pinned):
         self._update(record_id, pinned=bool(pinned))
 
-    def rename(self, record_id: str, name: str):
+    def rename(self, record_id, name):
         self._update(record_id, name=name.strip())
 
-    def delete(self, record_id: str):
-        if not any(record["id"] == record_id for record in self._records):
-            raise KeyError(record_id)
-        self._commit([record for record in self._records if record["id"] != record_id])
+    def delete(self, record_id):
+        with self._transaction():
+            if not any(r["id"] == record_id for r in self._records):
+                raise KeyError(record_id)
+            self._commit([r for r in self._records if r["id"] != record_id])
 
-    def set_limit(self, limit: int):
+    def set_limit(self, limit):
         self._validate_limit(limit)
-        self._commit(self._trim(self._records, limit))
-        self.limit = limit
+        with self._transaction():
+            self.limit = limit
+            self._commit(self._trim(self._records, limit))
 
-    def migrate(self, project_path: str):
-        """Persist an unsaved project on first save, retaining existing history."""
+    def cleanup_recovery(self, keep=10):
+        """Explicit action only. Keep unresolved, pinned and latest recovery events."""
+        self._validate_limit(keep)
+        with self._transaction():
+            recoveries = [r for r in self._records if r.get("kind") == "recovery"]
+            protected = {r["id"] for r in recoveries[-keep:]}
+            records = [r for r in self._records if r.get("kind") != "recovery"
+                       or r["id"] in protected or r["pinned"]
+                       or r.get("outcome") not in {"complete", "undone"}]
+            removed = len(self._records) - len(records)
+            self._commit(records)
+        return removed
+
+    def migrate(self, project_path):
         if self.saved:
-            raise ValueError("Only unsaved projects can migrate history")
+            raise ValueError(tr("Only unsaved projects can migrate history"))
+        destination = self.copy_to(project_path)
+        self.key, self.saved, self.limit = destination.key, True, destination.limit
+        self._records, self._revision = destination._records, destination._revision
+
+    def copy_to(self, project_path):
+        if not project_path:
+            raise ValueError(tr("A destination path is required"))
+        records = self.refresh()
         destination = HistoryStore(self.root, project_path, self.limit)
-        if not destination.saved:
-            raise ValueError("Migration requires a saved project path")
-        # Preserve pinned and named records if two sessions contain the same state.
-        # Append-time deduplication remains scoped to the latest record in a session.
-        by_id = {record["id"]: record for record in destination._records + self._records}
-        records = sorted(by_id.values(), key=lambda record: record["created_at"])
-        destination._commit(self._trim(records, self.limit))
-        self.key, self.saved = destination.key, True
-        self._records = destination._records
+        with destination._transaction():
+            # Never merge independently existing project histories on Save As.
+            if destination._records:
+                raise HistoryError(tr("The destination already has history. Open that history or choose another path."))
+            destination._commit(records)
+        return destination
+
+    def export(self, path):
+        records = self.refresh()
+        payload = _json(dict(version=2, project_key=self.key, records=records))
+        # The dialog requests overwrite approval; create atomically via a sibling.
+        import tempfile
+        output = Path(path)
+        temporary = None
+        try:
+            with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=output.parent,
+                                             delete=False) as handle:
+                temporary = Path(handle.name)
+                handle.write(payload)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary, output)
+        finally:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)

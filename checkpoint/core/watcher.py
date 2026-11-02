@@ -22,6 +22,7 @@ def disconnect(connections):
 
 class Watcher(QObject):
     saveRequested = pyqtSignal()
+    stateChanged = pyqtSignal()
 
     def __init__(self, project, parent=None, *, interval=60, last_saved=None):
         super().__init__(parent)
@@ -36,7 +37,7 @@ class Watcher(QObject):
         try:
             root = project.layerTreeRoot()
             for signal in (root.addedChildren, root.removedChildren, root.visibilityChanged,
-                           root.expandedChanged, root.nameChanged):
+                           root.nameChanged):
                 self._connect(signal, self.mark_dirty, self._connections)
             self._connect(project.layersAdded, self._added, self._connections)
             self._connect(project.layersWillBeRemoved, self._removing, self._connections)
@@ -76,6 +77,7 @@ class Watcher(QObject):
         if self.closed or self._suppression:
             return
         self.dirty, self.last_change = True, monotonic()
+        self.stateChanged.emit()
         self._schedule()
 
     def configure(self, auto: bool, interval: int):

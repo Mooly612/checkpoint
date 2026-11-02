@@ -1,3 +1,5 @@
+> Historical 0.1 engineering note. Current behavior is documented in [reference.md](reference.md).
+
 # Milestone 3 verification
 
 ## Implemented behavior

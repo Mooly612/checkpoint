@@ -86,3 +86,48 @@ def test_initial_description(state):
 def test_invalid_float_is_rejected():
     with pytest.raises(ValueError):
         digest(float("nan"))
+
+
+def test_application_scope_uses_current_project_not_historical_description(state):
+    from checkpoint.core.differ import application_summary
+    saved = deepcopy(state)
+    current = deepcopy(state)
+    current['layers']['roads']['style'] = '<changed/>'
+    current['layers']['parcels']['filter'] = 'id > 3'
+    current['layers']['later'] = {'name': 'Later', 'style': '<style/>', 'filter': ''}
+    summary = application_summary(current, saved)
+    assert 'Roads: style / labels' in summary
+    assert 'Parcels: filter' in summary
+    assert 'Later layers, kept: Later' in summary
+    assert 'saved CRS is unknown' in summary
+    del current['layers']['roads']
+    assert 'Missing layers, skipped: Roads' in application_summary(current, saved)
+    assert 'setting disabled' in application_summary(current, saved, restore_view=False)
+
+
+def test_schema_two_deduplicates_equivalent_qgis_xml_and_retains_legacy_hashes(state):
+    before, after = deepcopy(state), deepcopy(state)
+    before['layers']['roads']['style'] = '<qgis opacity="1" labels="1"><symbol color="red" width="2"/></qgis>'
+    after['layers']['roads']['style'] = '<qgis labels="1" opacity="1"><symbol width="2" color="red"></symbol></qgis>'
+    # Existing schema-1 records still validate against their original byte hash.
+    assert state_hash(before) != state_hash(after)
+    before['schema'] = after['schema'] = 2
+    assert state_hash(before) == state_hash(after)
+    assert describe(before, after) == 'No styling changes'
+    from checkpoint.core.differ import application_summary
+    assert 'Roads: style and filter unchanged' in application_summary(before, after)
+    after['layers']['roads']['style'] = after['layers']['roads']['style'].replace('red', 'blue')
+    assert state_hash(before) != state_hash(after)
+    assert describe(before, after) == 'style: Roads'
+
+
+def test_embedded_callout_xml_order_is_ignored_but_values_and_user_text_are_not(state):
+    from xml.sax.saxutils import quoteattr
+    from checkpoint.core.differ import styles_equal
+    first = '<symbol type="line" alpha="1"><layer class="SimpleLine" color="red"/></symbol>'
+    second = '<symbol alpha="1" type="line"><layer color="red" class="SimpleLine"/></symbol>'
+    def wrap(value, parent='callout'):
+        return '<qgis><' + parent + '><Option name="lineSymbol" value=' + quoteattr(value) + '/></' + parent + '></qgis>'
+    assert styles_equal(wrap(first), wrap(second))
+    assert not styles_equal(wrap(first), wrap(second.replace('red', 'blue')))
+    assert not styles_equal(wrap(first, 'customproperties'), wrap(second, 'customproperties'))

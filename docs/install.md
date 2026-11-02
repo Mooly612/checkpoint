@@ -1,48 +1,78 @@
-# Installation and first test
+# Install Checkpoint 0.2.0
 
-## Install from ZIP
+## From the prepared ZIP
 
-1. Build with `python3 scripts/package.py` or obtain the release ZIP.
-2. Open QGIS **Plugins → Manage and Install Plugins → Install from ZIP**.
-3. Select `checkpoint.zip`, install it, and enable Checkpoint under Installed.
-4. Restart QGIS after replacing an existing version so Python modules are reloaded.
+The local artifact is `dist/checkpoint-0.2.0.zip`. Its checksum is in
+`dist/checkpoint-0.2.0.zip.sha256`. No hosted release download is available.
+From the `dist` directory, verify with `shasum -a 256 -c checkpoint-0.2.0.zip.sha256`
+on macOS, or `sha256sum -c checkpoint-0.2.0.zip.sha256` on Linux.
 
-If using a source symlink, keep it for development. Test ZIP installation in a
-separate QGIS profile rather than replacing the symlink.
+1. Open **Plugins → Manage and Install Plugins → Install from ZIP** in QGIS.
+2. Choose `checkpoint-0.2.0.zip` and install. Enable Checkpoint under Installed.
+3. Restart QGIS after replacing an existing version.
+4. Open a project and confirm the starting checkpoint/status before editing.
+5. Change two layers, select the starting point, read its inline scope, click
+   **Apply saved map styling**, then **Undo last application**.
 
-## Development installation
+QGIS 3.44 or newer within the 3.x series, with Qt5, is required. Earlier QGIS
+versions and Qt6/QGIS4 are refused before styling can change.
 
-Find the active profile directory in the QGIS Python Console:
+The ZIP has one top-level `checkpoint/` directory, includes the synthetic `demo/`
+project and its GeoJSON sources, and needs no extra Python
+packages. It is experimental. Runtime-verified here on QGIS 3.44.8 / Qt5 on macOS.
+Do not install over a development symlink; use a separate QGIS profile for ZIP
+validation.
 
-```python
-from qgis.core import QgsApplication
-print(QgsApplication.qgisSettingsDirPath())
+## Build from source
+
+Python 3.9+ can package the plugin without QGIS:
+
+```sh
+python3 scripts/package.py
 ```
 
-With QGIS closed, link the repository's inner `checkpoint` package into that
-profile's `python/plugins/checkpoint` directory. Do not overwrite an existing
-folder or symlink. Start QGIS and enable the plugin. Restart after code updates.
+The builder reads the version from metadata, validates Python syntax and required
+files, excludes development artifacts, fixes ZIP timestamps/permissions, and
+writes the SHA-256 sidecar. Repeated builds from unchanged input are byte-identical.
 
-## First test
+## Existing history
 
-Use a disposable project with two vector layers:
+Version 0.1 JSON is validated and imported transactionally on the first change.
+The original `history.json` is retained. Old pins, names, IDs, images and snapshots
+are preserved. Old snapshots keep the current tree and skip unknown-CRS views,
+with notices. Do not run 0.1 and 0.2 writers against the same profile: the old
+plugin does not know about SQLite or newer entries.
 
-1. Choose Manual and save a checkpoint. Save again unchanged; no new entry appears.
-2. Change a symbol, layer filter, and visibility; save another checkpoint.
-3. With Previews enabled, inspect symbol samples and click a row to compare maps.
-4. Select the first record and click Restore. Verify styling returns and two new
-   entries appear, including pinned before restore. Restore that entry to undo.
-5. Delete a layer, then restore a snapshot that included it. Check the skipped-layer
-   message; data must not be recreated.
-6. Pin and rename an entry. Cancel a deletion, then confirm another deletion.
-7. Open Settings… and select Checkpoint. Change the buffer, interval, and map-view
-   preference. Cancel once to verify settings are not applied; then apply them.
-8. Turn previews off and save a changed state. History should work without new images.
-9. Switch to Auto with a 5-second minimum gap. Make rapid changes, then wait. One
-   settled checkpoint should appear; idle time and pan/zoom must not create more.
-10. Save an unsaved project, reopen it, then use Save As to a new path. Original
-    history persists at the original path and does not mix with the new path.
+## Development and checks
 
-If previews time out, toggle Previews off/on and create a new checkpoint. Existing
-empty previews are not regenerated. If errors occur, inspect **View → Panels →
-Log Messages → Checkpoint** and report the traceback, QGIS version, and provider.
+The source-symlink workflow belongs in a development profile. Find its directory
+with `QgsApplication.qgisSettingsDirPath()` in the QGIS Python console. With that
+QGIS instance closed, link the repository's inner `checkpoint` package into the
+profile's `python/plugins/checkpoint`, without overwriting an existing directory.
+
+```sh
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements-dev.txt
+.venv/bin/python -m pytest -q
+python3 scripts/package.py
+# Use the Python interpreter supplied by a working QGIS installation:
+python3 scripts/run_qgis_checks.py --package dist/checkpoint-0.2.0.zip
+```
+
+For the tested macOS QGIS.app bundle (its executable is named python3.12):
+
+```sh
+env PYTHONHOME=/Applications/QGIS.app/Contents/Frameworks \
+  PYTHONPATH=/Applications/QGIS.app/Contents/Resources/python3.11/site-packages \
+  /Applications/QGIS.app/Contents/MacOS/python3.12 \
+  scripts/run_qgis_checks.py --package dist/checkpoint-0.2.0.zip
+```
+
+The runner creates a temporary QGIS profile, extracts the package into a temporary
+plugin installation, verifies the imported path, and uses separate projects and
+canvases. It never touches the open project or active user profile. This checks
+package loading and plugin lifecycle, not the interactive Plugin Manager wizard.
+
+If history saving fails, read the status/message bar and retry **Save checkpoint**.
+If maps are unavailable, use **Retry maps** or leave maps off. Full details are in
+**View → Panels → Log Messages → Checkpoint**.

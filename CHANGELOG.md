@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.2.0 (2026-11-03, experimental local build)
+
+- Retain native group metadata, mutually exclusive selection and stable identity.
+  Legacy snapshots keep the current tree; unsupported group layers refuse safely.
+- Replace stale-list JSON writes with SQLite transactions and a short busy timeout.
+  Preserve legacy JSON, user pins and independent writers; deletion never resurrects.
+- Save view CRS, transform centers/extent, preserve saved scale, and skip unsafe views.
+- Capture a session starting point and show Auto, Manual, unavailable and memory-only states.
+  Normalize style XML hashes so unchanged projects do not duplicate history across processes.
+- Add current-project application scope, explicit Preview, Apply and Undo controls.
+- Separate recovery from user pins; link application events and provide explicit cleanup.
+- Keep lightweight samples with maps off, expose Retry maps, measure preparation and
+  rendering separately, and tolerate late render completion after cancellation.
+- Add a Save As choice, safe history copying and JSON export. Cross-project import
+  remains unsupported until layer/source identity can be mapped safely.
+- Add a synthetic real QGIS demo, current native-widget screenshots, concurrency/
+  regression checks, CI configuration and reproducible versioned ZIP packaging.
+- Require QGIS 3.44+ within 3.x / Qt5, with a runtime guard before mutations. Runtime verification remains QGIS 3.44.8 on macOS.
+
+
 ## 0.1.0 (2026-11-02, experimental local build)
 
 ### Milestone 1
