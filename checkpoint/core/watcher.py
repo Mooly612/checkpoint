@@ -39,6 +39,7 @@ class Watcher(QObject):
             for signal in (root.addedChildren, root.removedChildren, root.visibilityChanged,
                            root.nameChanged):
                 self._connect(signal, self.mark_dirty, self._connections)
+            self._connect(root.customPropertyChanged, self._custom_property, self._connections)
             self._connect(project.layersAdded, self._added, self._connections)
             self._connect(project.layersWillBeRemoved, self._removing, self._connections)
             self._watch_layers(project.mapLayers().values())
@@ -72,6 +73,11 @@ class Watcher(QObject):
             layer_id = layer if isinstance(layer, str) else layer.id()
             disconnect(self._layers.pop(layer_id, []))
         self.mark_dirty()
+
+    def _custom_property(self, node, key):
+        # Root receives propagated descendant signals, including newly added groups.
+        if key != "checkpoint/group-id":
+            self.mark_dirty()
 
     def mark_dirty(self, *args):
         if self.closed or self._suppression:

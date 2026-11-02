@@ -73,10 +73,12 @@ def legend_samples(layer, check_time=lambda: None):
     return items
 
 
-def symbol_samples(state, key):
+def symbol_samples(state, key, limit=2):
     """Read renderer XML without cloning or calling the source data provider."""
     saved = state["layers"].get(key) if state else None
     if saved is None:
+        return {}
+    if len(saved["style"]) > 128_000:
         return {}
     doc, element = _element(saved["style"])
     renderer_element = element.firstChildElement("renderer-v2")
@@ -89,7 +91,7 @@ def symbol_samples(state, key):
     opacity = float(opacity_text) if opacity_text else 1.0
     # Use the same native symbol rendering, without any live QgsMapLayer.
     result, occurrences = {}, defaultdict(int)
-    for item in renderer.legendSymbolItems():
+    for item in renderer.legendSymbolItems()[:limit]:
         symbol = item.symbol()
         if symbol is None:
             continue
@@ -110,8 +112,12 @@ def lightweight_preview(before, after):
     payload = {"summary": describe(before, after), "samples": [], "more": 0,
                "maps": {}, "status": tr("Map previews off"), "note": tr("Historical comparison, not a simulation of applying this entry now.")}
     samples = []
-    for key in changed_ids(before, after):
+    for key in changed_ids(before, after)[:2]:
         try:
+            old_state = before["layers"].get(key) if before else None
+            new_state = after["layers"].get(key)
+            if old_state and new_state and styles_equal(old_state["style"], new_state["style"]):
+                continue
             old, new = symbol_samples(before, key), symbol_samples(after, key)
             source = after["layers"].get(key) or before["layers"][key]
             for label in sorted(old.keys() | new.keys()):
@@ -120,7 +126,8 @@ def lightweight_preview(before, after):
                                     "before": old.get(label), "after": new.get(label)})
         except Exception as exc:
             payload["note"] += " Symbol sample unavailable: " + str(exc)
-    payload["samples"], payload["more"] = samples[:2], max(0, len(samples) - 2)
+    payload["samples"] = samples[:2]
+    payload["note"] += tr(" Symbol samples are limited to the first two legend items of two changed layers; styles over 128 KB are omitted. Other changes may exist; see the text summary.")
     return payload
 
 
@@ -229,7 +236,7 @@ class PreviewTask(QObject):
                 break
             if found:
                 break
-        self.payload["note"] = focus + ". Same extent on both sides; not exact changed features. Both styles use data available at capture time."
+        self.payload["note"] += " " + focus + ". Same extent on both sides; not exact changed features. Both styles use data available at capture time."
         if notes:
             self.payload["note"] += " " + "; ".join(sorted(set(notes)))
         self.payload["extent"] = [extent.xMinimum(), extent.yMinimum(), extent.xMaximum(), extent.yMaximum()]
@@ -252,11 +259,18 @@ class PreviewTask(QObject):
 
     def start(self):
         _main_thread()
+        waiting_for_job = bool(_RUNNING)
+        if waiting_for_job:
+            self.render_maps = False
+            # A cancelled job still owns its layers until its finished signal.
+            # Bound live map jobs globally instead of accumulating detached data.
         _RUNNING.add(self)
         self.started = monotonic()
         self.render_started = None
         try:
             self.payload = lightweight_preview(self.before, self.after)
+            if waiting_for_job:
+                self.payload["status"] = tr("Map preview skipped while an earlier render finishes; symbol samples remain available")
             self.payload["timings_ms"] = {"symbols": (monotonic() - self.started) * 1000}
             if not self.render_maps:
                 self._publish()

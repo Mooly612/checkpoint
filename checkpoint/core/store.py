@@ -59,11 +59,25 @@ class HistoryStore:
         self.limit, self.saved = limit, bool(project_path)
         self.key = project_key(project_path) if self.saved else "temporary-" + uuid4().hex
         self._connection, self._revision = None, None
+        self._undo_head = None
         self._records = self._read() if self.saved else []
 
     @property
     def records(self):
         return deepcopy(self._records)
+
+    def get_record(self, record_id):
+        return deepcopy(next((r for r in self._records if r["id"] == record_id), None))
+
+    def undo_target(self):
+        # Only the newest explicitly marked user Apply can be undone. Never fall
+        # back to an older event when its target is missing or already consumed.
+        event = next((r for r in self._records if r["id"] == self._undo_head), None)
+        return event["id"] if event and event.get("outcome") != "undone" else None
+
+    @property
+    def has_records(self):
+        return bool(self._records)
 
     @property
     def path(self):
@@ -92,6 +106,8 @@ class HistoryStore:
             raise HistoryError(tr("Unsupported database format"))
         self.limit = int(db.execute("SELECT value FROM settings WHERE key='limit'").fetchone()[0])
         self._validate_limit(self.limit)
+        head = db.execute("SELECT value FROM settings WHERE key='undo_head'").fetchone()
+        self._undo_head = head[0] if head else None
         row = db.execute("SELECT value FROM settings WHERE key='revision'").fetchone()
         revision = int(row[0]) if row else 0
         if self._revision == revision and hasattr(self, "_records"):
@@ -114,14 +130,15 @@ class HistoryStore:
         except (sqlite3.Error, OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
             raise HistoryError(f"Cannot read history at {self.path}: {exc}") from exc
 
-    def refresh(self):
+    def refresh(self, *, return_records=True):
         if self.saved:
             self._records = self._read()
-        return self.records
+        return self.records if return_records else None
 
     @contextmanager
     def _transaction(self):
         original, original_limit, original_revision = self._records, self.limit, self._revision
+        original_head = self._undo_head
         db = None
         try:
             if self.saved:
@@ -147,6 +164,7 @@ class HistoryStore:
             if db is not None:
                 db.rollback()
             self._records, self.limit, self._revision = original, original_limit, original_revision
+            self._undo_head = original_head
             if isinstance(exc, sqlite3.Error):
                 raise HistoryError(tr("History unavailable (busy or storage error); retry: ") + str(exc)) from exc
             raise
@@ -162,8 +180,14 @@ class HistoryStore:
 
     def _commit(self, records):
         """Called only inside a transaction. Touch only changed rows."""
+        old_ids = {r["id"] for r in self._records}
+        for record in records:
+            if record["id"] not in old_ids and record.get("operation") == "apply" and record.get("kind") == "recovery":
+                self._undo_head = record["id"]
         db = self._connection
         if db is not None:
+            if self._undo_head:
+                db.execute("INSERT OR REPLACE INTO settings VALUES('undo_head', ?)", (self._undo_head,))
             old = {r["id"]: r for r in self._records}
             new = {r["id"]: r for r in records}
             db.executemany("DELETE FROM records WHERE id=?", [(key,) for key in old.keys() - new.keys()])
@@ -183,9 +207,9 @@ class HistoryStore:
     def append(self, state, *, pinned=False, name="", description=None, force=False):
         return self._append(state, pinned=pinned, name=name, description=description, force=force)
 
-    def append_restore(self, state, *, before=False, description=None, event_id=None, target=""):
+    def append_restore(self, state, *, before=False, description=None, event_id=None, target="", operation="legacy", undo_of=None):
         return self._append(state, force=True, kind="recovery" if before else "application",
-                            event_id=event_id or uuid4().hex, target=target,
+                            event_id=event_id or uuid4().hex, target=target, operation=operation, undo_of=undo_of,
                             name=("Recovery: " + target) if before else "", description=description,
                             outcome="pending" if before else "complete")
 
@@ -200,29 +224,40 @@ class HistoryStore:
             record = dict(id=uuid4().hex, created_at=datetime.now(timezone.utc).isoformat(),
                           state=state, components=components, state_hash=hashed,
                           description=description if description is not None else describe(
-                              previous["state"] if previous else None, state),
+                              previous["state"] if previous else None, state,
+                              before_hashes=previous["components"] if previous else None, after_hashes=components),
                           pinned=bool(pinned), name=name, **metadata)
             self._commit(self._trim(self._records + [record], self.limit))
         return deepcopy(record)
 
     def _update(self, record_id, **changes):
         with self._transaction():
-            records = self.records
+            records = list(self._records)
             record = next((r for r in records if r["id"] == record_id), None)
             if record is None:
                 raise KeyError(record_id)
-            record.update(changes)
+            if all(record.get(key) == value for key, value in changes.items()):
+                return
+            index = records.index(record)
+            record = dict(record)
+            records[index] = record
+            record.update(deepcopy(changes))
             self._commit(self._trim(records, self.limit))
 
     def set_preview(self, record_id, preview):
         with self._transaction():
-            records = self.records
+            records = list(self._records)
             record = next((r for r in records if r["id"] == record_id), None)
             if record is None:
                 raise KeyError(record_id)
+            if record.get("preview") == preview and "preview" in record:
+                return
             # Published images never get overwritten, including by late callbacks.
             if "preview" in record and record["preview"] != preview:
                 raise HistoryError(tr("Saved previews are immutable"))
+            index = records.index(record)
+            record = dict(record)
+            records[index] = record
             record["preview"] = deepcopy(preview)
             self._commit(records)
 
@@ -255,6 +290,7 @@ class HistoryStore:
         with self._transaction():
             recoveries = [r for r in self._records if r.get("kind") == "recovery"]
             protected = {r["id"] for r in recoveries[-keep:]}
+            protected.add(self._undo_head)
             records = [r for r in self._records if r.get("kind") != "recovery"
                        or r["id"] in protected or r["pinned"]
                        or r.get("outcome") not in {"complete", "undone"}]
@@ -268,6 +304,7 @@ class HistoryStore:
         destination = self.copy_to(project_path)
         self.key, self.saved, self.limit = destination.key, True, destination.limit
         self._records, self._revision = destination._records, destination._revision
+        self._undo_head = destination._undo_head
 
     def copy_to(self, project_path):
         if not project_path:
@@ -279,11 +316,13 @@ class HistoryStore:
             if destination._records:
                 raise HistoryError(tr("The destination already has history. Open that history or choose another path."))
             destination._commit(records)
+            destination._undo_head = self._undo_head
+            destination._connection.execute("INSERT OR REPLACE INTO settings VALUES('undo_head', ?)", (self._undo_head or "",))
         return destination
 
     def export(self, path):
         records = self.refresh()
-        payload = _json(dict(version=2, project_key=self.key, records=records))
+        payload = _json(dict(version=2, project_key=self.key, undo_head=self._undo_head, records=records))
         # The dialog requests overwrite approval; create atomically via a sibling.
         import tempfile
         output = Path(path)

@@ -42,6 +42,10 @@ def build(root=ROOT, output=None):
         if path.is_symlink():
             raise ValueError("Documentation must not be a symlink")
         files["checkpoint/docs/" + path.name] = path.read_bytes()
+    for path in sorted((root / "docs" / "benchmarks").glob("*.jsonl")):
+        if path.is_symlink():
+            raise ValueError("Benchmark data must not be a symlink")
+        files["checkpoint/docs/benchmarks/" + path.name] = path.read_bytes()
     for path in sorted((root / "docs" / "images").glob("*")):
         if path.suffix in {".png", ".svg"} and path.is_file():
             files["checkpoint/docs/images/" + path.name] = path.read_bytes()

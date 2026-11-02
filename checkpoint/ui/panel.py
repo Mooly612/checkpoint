@@ -5,7 +5,7 @@ from qgis.PyQt.QtCore import QSize, Qt, QSignalBlocker, pyqtSignal
 from qgis.PyQt.QtWidgets import (
     QCheckBox, QComboBox, QDockWidget, QFormLayout, QLabel, QListWidget,
     QListWidgetItem, QPushButton, QSpinBox, QVBoxLayout, QWidget, QHBoxLayout,
-    QPlainTextEdit, QMenu, QToolButton,
+    QPlainTextEdit, QMenu, QToolButton, QSplitter,
 )
 from .preview import PreviewDialog, sample_icon
 
@@ -46,6 +46,7 @@ class HistoryPanel(QDockWidget):
         previews.addWidget(self.retry_button)
         layout.addLayout(previews)
         self.preview_status = QLabel(body)
+        self.preview_status.setToolTip(self.tr("Saved images show historical comparisons using data available at capture time. They are not a simulation of applying this entry now."))
         self.preview_status.setWordWrap(True)
         self.preview_status.setTextFormat(Qt.TextFormat.PlainText)
         layout.addWidget(self.preview_status)
@@ -56,19 +57,34 @@ class HistoryPanel(QDockWidget):
         self.history.setIconSize(QSize(76, 60))
         self.history.setAccessibleName(self.tr("Checkpoint history"))
         self.history.setMinimumHeight(110)
-        layout.addWidget(self.history, 2)
-        layout.addWidget(QLabel(self.tr("Changes relative to the current project"), body))
+        self.splitter = QSplitter(Qt.Orientation.Vertical, body)
+        self.splitter.addWidget(self.history)
+        scope = QWidget(body)
+        scope_layout = QVBoxLayout(scope)
+        scope_layout.setContentsMargins(0, 0, 0, 0)
+        scope_layout.addWidget(QLabel(self.tr("Changes relative to the current project"), body))
+        self.full_scope = QCheckBox(self.tr("Show full snapshot contents"), scope)
+        scope_layout.addWidget(self.full_scope)
         self.details = QPlainTextEdit(body)
         self.details.setReadOnly(True)
         self.details.setAccessibleName(self.tr("Application scope"))
         self.details.setPlaceholderText(self.tr("Select a checkpoint to inspect its scope."))
         self.details.setMinimumHeight(105)
-        self.details.setMaximumHeight(210)
-        layout.addWidget(self.details, 1)
+        scope_layout.addWidget(self.details)
+        self.splitter.addWidget(scope)
+        self.splitter.setSizes([240, 220])
+        from qgis.core import QgsSettings
+        sizes = QgsSettings().value("checkpoint/splitter", None)
+        if sizes:
+            self.splitter.restoreState(sizes)
+        self.splitter.splitterMoved.connect(lambda *args: QgsSettings().setValue(
+            "checkpoint/splitter", self.splitter.saveState()))
+        layout.addWidget(self.splitter, 1)
         self.restore_button = QPushButton(self.tr("Apply saved map styling"), body)
         self.restore_button.setToolTip(self.tr("Save a recovery checkpoint, then apply all supported saved styling."))
         layout.addWidget(self.restore_button)
         self.undo_button = QPushButton(self.tr("Undo last application"), body)
+        self.undo_button.setToolTip(self.tr("Restore the state before the last Apply, including later manual styling edits. Current styling is saved as a recovery first. Single-level Undo."))
         layout.addWidget(self.undo_button)
         actions = QHBoxLayout()
         self.pin_button = QPushButton(self.tr("Pin"), body)
@@ -98,7 +114,7 @@ class HistoryPanel(QDockWidget):
 
     def set_available(self, available, message):
         self._available = available
-        self._selection_changed()
+        self._selection_changed(notify=False)
         self.save_button.setEnabled(available)
         self.mode.setEnabled(available)
         self.interval.setEnabled(available and self.mode.currentIndex() == 0)
@@ -115,7 +131,7 @@ class HistoryPanel(QDockWidget):
         item = self.history.currentItem()
         return item.data(Qt.ItemDataRole.UserRole) if item is not None else None
 
-    def _selection_changed(self, *args):
+    def _selection_changed(self, *args, notify=True):
         record = self._records.get(self.selected_id())
         enabled = self._available and record is not None
         for button in (self.restore_button, self.pin_button, self.rename_button, self.delete_button):
@@ -125,7 +141,8 @@ class HistoryPanel(QDockWidget):
         self.pin_button.setText(self.tr("Unpin") if record and record["pinned"] else self.tr("Pin"))
         if record is None:
             self.details.clear()
-        self.selectionChanged.emit()
+        if notify:
+            self.selectionChanged.emit()
 
     def _open_preview(self, item):
         if item is None:
@@ -186,4 +203,4 @@ class HistoryPanel(QDockWidget):
                 self._dialog.set_record(self._records[self._dialog.record_id])
             else:
                 self._dialog.close()
-        self._selection_changed()
+        self._selection_changed(notify=selected != self.selected_id())

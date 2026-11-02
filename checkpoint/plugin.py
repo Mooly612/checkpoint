@@ -61,6 +61,7 @@ class CheckpointPlugin:
         p.restore_button.clicked.connect(self._restore_selected)
         p.undo_button.clicked.connect(self._undo)
         p.selectionChanged.connect(self._update_details)
+        p.full_scope.toggled.connect(self._update_details)
         p.mode.currentIndexChanged.connect(self._configure)
         p.interval.valueChanged.connect(self._configure)
         for signal, slot in (
@@ -85,6 +86,7 @@ class CheckpointPlugin:
             try:
                 self.store.set_limit(self.settings.value("checkpoint/limit", 20, type=int))
                 self._refresh()
+                self._update_details()
             except Exception as exc:
                 self._error(tr("Cannot apply history limit"), exc)
 
@@ -92,7 +94,8 @@ class CheckpointPlugin:
         if self._busy or self.store is None or self.watcher is None:
             return
         try:
-            record = next((r for r in self.store.refresh() if r["id"] == self.panel.selected_id()), None)
+            self.store.refresh(return_records=False)
+            record = self.store.get_record(self.panel.selected_id())
             if record is None:
                 self._refresh()
                 return
@@ -148,8 +151,9 @@ class CheckpointPlugin:
     def _reload(self):
         try:
             if self.store is not None:
-                self.store.refresh()
+                self.store.refresh(return_records=False)
                 self._refresh()
+                self._update_details()
             else:
                 self._session_ready()
         except Exception as exc:
@@ -177,7 +181,7 @@ class CheckpointPlugin:
     def _preview_status(self):
         heavy = self.store is not None and self.settings.value("checkpoint/heavy/" + self.store.key, False, type=bool)
         self.panel.preview_status.setText(tr("Map previews paused after a slow render. Symbols and details remain available; use Retry maps.")
-            if heavy else tr("Saved images show historical comparisons, not a simulation of this application.")
+            if heavy else tr("Map previews enabled.")
             if self.panel.previews.isChecked() else tr("Map previews off. Symbols and text remain available."))
 
     def _capture_preview(self, record, previous):
@@ -209,6 +213,8 @@ class CheckpointPlugin:
         self.preview_task.start()
 
     def _stop_watcher(self):
+        from .core.differ import clear_style_cache
+        clear_style_cache()
         if self.watcher is not None:
             self.watcher.close()
             self.watcher.deleteLater()
@@ -260,11 +266,11 @@ class CheckpointPlugin:
 
     def _content_changed(self):
         self._schedule_details()
-        if self.store is not None and not self.store.records and self.panel.mode.currentIndex() == 0:
+        if self.store is not None and not self.store.has_records and self.panel.mode.currentIndex() == 0:
             # For a new empty project, finish the layer-add operation before capture.
             store = self.store
             QTimer.singleShot(0, lambda: self._initial_checkpoint()
-                if not self._unloaded and self.store is store and not store.records else None)
+                if not self._unloaded and self.store is store and not store.has_records else None)
 
     def _path_changed(self):
         self._cancel_preview()
@@ -319,10 +325,8 @@ class CheckpointPlugin:
             return
         records = self.store.records
         self.panel.set_records(records)
-        recovery = next((r for r in reversed(records) if r.get("kind") == "recovery"
-                         and r.get("outcome") != "undone"), None)
-        self._last_recovery_id = recovery["id"] if recovery else None
-        self.panel.set_undo_available(recovery is not None)
+        self._last_recovery_id = self.store.undo_target()
+        self.panel.set_undo_available(self._last_recovery_id is not None)
         if self._save_error:
             message = tr("Saving unavailable: ") + self._save_error + " " + tr("Use Save checkpoint to retry.")
         elif not records:
@@ -338,16 +342,17 @@ class CheckpointPlugin:
         if not self._unloaded:
             self._details_timer.start(150)
 
-    def _update_details(self):
+    def _update_details(self, *args):
         if self._unloaded or self.panel is None or self.store is None or self._busy:
             return
         target = self.panel._records.get(self.panel.selected_id())
         if target is None:
             return
+        self._details_timer.stop()
         try:
             current = capture(self.project, self.iface.mapCanvas())
             view_enabled = self.settings.value("checkpoint/restore_view", True, type=bool)
-            summary = application_summary(current, target["state"], restore_view=view_enabled)
+            summary = application_summary(current, target["state"], restore_view=view_enabled, full=self.panel.full_scope.isChecked())
             if view_enabled:
                 _, notice = prepare_view(self.project, self.iface.mapCanvas(), target["state"])
                 if notice:
@@ -384,6 +389,8 @@ class CheckpointPlugin:
         finally:
             self._busy = False
             self._refresh()
+            if manual:
+                self._update_details()
 
     def _restore_selected(self, *args):
         self._apply(self.panel.selected_id())
@@ -398,8 +405,10 @@ class CheckpointPlugin:
         safety, applied = None, False
         self.panel.set_available(False, tr("Applying saved styling…"))
         try:
-            records = self.store.refresh()
-            target = next((r for r in records if r["id"] == record_id), None)
+            self.store.refresh(return_records=False)
+            if undo and self.store.undo_target() != record_id:
+                raise HistoryError("Undo target is no longer available; refresh history")
+            target = self.store.get_record(record_id)
             if target is None:
                 raise HistoryError("The selected checkpoint was deleted by another session")
             view_enabled = self.settings.value("checkpoint/restore_view", True, type=bool)
@@ -408,8 +417,10 @@ class CheckpointPlugin:
             title = target["name"] or target["description"]
             event = uuid4().hex
             safety = self.store.append_restore(capture(self.project, self.iface.mapCanvas()),
-                before=True, event_id=event, target=(tr("Undo application") if undo else title))
-            self._last_recovery_id = safety["id"]
+                before=True, event_id=event, target=(tr("Undo application") if undo else title),
+                operation="undo" if undo else "apply", undo_of=record_id if undo else None)
+            if not undo:
+                self._last_recovery_id = safety["id"]
             with self.watcher.suppress():
                 notices = restore(self.project, self.iface.mapCanvas(), target["state"], restore_view=view_enabled)
                 applied = True
@@ -422,7 +433,7 @@ class CheckpointPlugin:
                 self.watcher.acknowledge(True)
             self._save_error = ""
             self._capture_preview(result, safety["state"])
-            self._info(tr("Saved styling applied. Undo last application is available.")
+            self._info(tr("Undo complete. Current edits were saved in a recovery checkpoint.") if undo and not notices else tr("Saved styling applied. Undo last application is available.")
                        + (" " + "; ".join(notices) if notices else ""), warning=bool(notices))
         except Exception as exc:
             if isinstance(exc, (HistoryError, OSError)):
@@ -437,6 +448,7 @@ class CheckpointPlugin:
         finally:
             self._busy = False
             self._refresh()
+            self._update_details()
 
     def _info(self, message, *, warning=False):
         self.iface.messageBar().pushMessage("Checkpoint", message,

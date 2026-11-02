@@ -1,3 +1,11 @@
+## 0.2.1
+
+- Single-level Undo with persisted Apply identity; successful Undo consumes the action.
+- Auto observes propagated custom group properties and ignores internal group UUIDs.
+- Resizable details, optional full contents, and metadata updates without project capture.
+- Bounded symbol samples, bounded active map jobs, XML cache and lighter metadata writes.
+- Additional native failure/lifecycle tests and reproducible profiling scripts.
+
 # Changelog
 
 ## 0.2.0 (2026-11-03, experimental local build)

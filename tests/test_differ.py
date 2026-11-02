@@ -115,7 +115,7 @@ def test_schema_two_deduplicates_equivalent_qgis_xml_and_retains_legacy_hashes(s
     assert state_hash(before) == state_hash(after)
     assert describe(before, after) == 'No styling changes'
     from checkpoint.core.differ import application_summary
-    assert 'Roads: style and filter unchanged' in application_summary(before, after)
+    assert 'Roads: style and filter unchanged' in application_summary(before, after, full=True)
     after['layers']['roads']['style'] = after['layers']['roads']['style'].replace('red', 'blue')
     assert state_hash(before) != state_hash(after)
     assert describe(before, after) == 'style: Roads'
@@ -131,3 +131,18 @@ def test_embedded_callout_xml_order_is_ignored_but_values_and_user_text_are_not(
     assert styles_equal(wrap(first), wrap(second))
     assert not styles_equal(wrap(first), wrap(second.replace('red', 'blue')))
     assert not styles_equal(wrap(first, 'customproperties'), wrap(second, 'customproperties'))
+
+
+def test_style_cache_is_bounded_exact_and_clearable():
+    from checkpoint.core import differ
+    differ.clear_style_cache()
+    for i in range(300):
+        xml = f'<qgis value="{i}"/>'
+        assert str(i) in differ.normalized_style(xml)
+    assert len(differ._STYLE_CACHE) <= 256
+    assert differ._STYLE_CACHE_BYTES <= 8_000_000
+    large = '<qgis>' + 'x' * 600_000 + '</qgis>'
+    differ.normalized_style(large)
+    assert large not in differ._STYLE_CACHE
+    differ.clear_style_cache()
+    assert not differ._STYLE_CACHE and differ._STYLE_CACHE_BYTES == 0

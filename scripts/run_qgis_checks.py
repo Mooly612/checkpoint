@@ -50,7 +50,7 @@ with TemporaryDirectory(prefix="checkpoint-checks-") as directory:
         print("Runtime:", Qgis.QGIS_VERSION, "Qt", QT_VERSION_STR, "Python", sys.version.split()[0], flush=True)
         print("Plugin:", checkpoint.__file__, flush=True)
         for name in ("qgis_settings_smoke.py", "qgis_smoke.py", "qgis_watcher_smoke.py",
-                     "qgis_plugin_smoke.py", "qgis_restore_smoke.py", "qgis_thumbnail_smoke.py", "qgis_regression_smoke.py", "qgis_demo_smoke.py", "qgis_reopen_smoke.py"):
+                     "qgis_plugin_smoke.py", "qgis_restore_smoke.py", "qgis_thumbnail_smoke.py", "qgis_regression_smoke.py", "qgis_demo_smoke.py", "qgis_reopen_smoke.py", "qgis_followup_smoke.py", "qgis_shutdown_smoke.py"):
             if args.only and Path(name).stem not in args.only:
                 continue
             print("Running", name, flush=True)
@@ -65,4 +65,11 @@ with TemporaryDirectory(prefix="checkpoint-checks-") as directory:
                 break
             QTest.qWait(20)
         assert not _RUNNING, "Preview resources still in use at QGIS shutdown"
+        # runpy scripts can leave Python/Qt cycles and deferred widget deletes.
+        # Finalize them while QGIS registries/providers are still alive.
+        import gc
+        from qgis.PyQt.QtCore import QCoreApplication, QEvent
+        gc.collect()
+        QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+        gc.collect()
         app.exitQgis()

@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from xml.etree import ElementTree
+from collections import OrderedDict
 
 from ..i18n import tr
 
@@ -16,7 +17,35 @@ def digest(value) -> str:
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
+_STYLE_CACHE = OrderedDict()
+_STYLE_CACHE_BYTES = 0
+
+
+def clear_style_cache():
+    global _STYLE_CACHE_BYTES
+    _STYLE_CACHE.clear()
+    _STYLE_CACHE_BYTES = 0
+
+
 def normalized_style(xml):
+    """Bounded exact-input cache. Large styles bypass it; no layer identity guesses."""
+    global _STYLE_CACHE_BYTES
+    if xml in _STYLE_CACHE:
+        value, size = _STYLE_CACHE.pop(xml)
+        _STYLE_CACHE[xml] = (value, size)
+        return value
+    value = _normalize_style(xml)
+    size = 4 * (len(xml) + len(value))
+    if size <= 512_000:
+        while _STYLE_CACHE and (_STYLE_CACHE_BYTES + size > 8_000_000 or len(_STYLE_CACHE) >= 256):
+            _, (_, removed) = _STYLE_CACHE.popitem(last=False)
+            _STYLE_CACHE_BYTES -= removed
+        _STYLE_CACHE[xml] = (value, size)
+        _STYLE_CACHE_BYTES += size
+    return value
+
+
+def _normalize_style(xml):
     """Ignore XML attribute order/quoting while retaining all actual style data."""
     try:
         root = ElementTree.fromstring(xml)
@@ -46,7 +75,7 @@ def normalized_style(xml):
 
 
 def styles_equal(first, second):
-    return normalized_style(first) == normalized_style(second)
+    return first == second or normalized_style(first) == normalized_style(second)
 
 
 def component_hashes(state: dict) -> dict:
@@ -79,10 +108,11 @@ def _tree_parts(node: dict, path: tuple = ()) -> tuple:
     return ("group", node["name"], children), visible, expanded
 
 
-def describe(previous: dict | None, current: dict) -> str:
+def describe(previous: dict | None, current: dict, *, before_hashes=None, after_hashes=None) -> str:
     if previous is None:
         return tr("Initial checkpoint")
-    before, after = component_hashes(previous), component_hashes(current)
+    before = before_hashes if before_hashes is not None else component_hashes(previous)
+    after = after_hashes if after_hashes is not None else component_hashes(current)
     old_layers, layers = previous["layers"], current["layers"]
     parts = []
     for label, ids, source in (
@@ -116,27 +146,32 @@ def describe(previous: dict | None, current: dict) -> str:
     return "; ".join(parts) or tr("No styling changes")
 
 
-def application_summary(current, saved, *, restore_view=True):
+def application_summary(current, saved, *, restore_view=True, full=False):
     """Prospective scope, independent of the entry's historical description/images."""
     current_layers, target = current["layers"], saved["layers"]
     common = current_layers.keys() & target.keys()
-    lines = [tr("Apply saved styling to {count} existing layers.").format(count=len(common))]
+    lines = []
+    changed_count = 0
     for key in sorted(common, key=lambda k: target[k]["name"]):
         changes = []
         if not styles_equal(current_layers[key]["style"], target[key]["style"]):
             changes.append(tr("style / labels"))
         if current_layers[key]["filter"] != target[key]["filter"]:
             changes.append(tr("filter"))
-        lines.append(target[key]["name"] + ": " + (", ".join(changes) or tr("style and filter unchanged")))
+        changed_count += bool(changes)
+        if changes or full:
+            lines.append(target[key]["name"] + ": " + (", ".join(changes) or tr("style and filter unchanged")))
     old_shape, old_visible, old_expanded = _tree_parts(current["tree"])
     shape, visible, expanded = _tree_parts(saved["tree"])
     if saved.get("schema", 1) < 2:
         lines.append(tr("Legacy entry: keep the current tree; group properties and identities were not recorded."))
     else:
-        lines.append(tr("Layer order / groups: ") + (tr("change") if old_shape != shape else tr("unchanged")))
-        lines.append(tr("Visibility: ") + (tr("change") if old_visible != visible else tr("unchanged")))
-        lines.append(tr("Expanded groups: ") + (tr("change") if old_expanded != expanded else tr("unchanged")))
-        if component_hashes(current)["tree"] != component_hashes(saved)["tree"]:
+        for label, changed in ((tr("Layer order / groups: "), old_shape != shape),
+                               (tr("Visibility: "), old_visible != visible),
+                               (tr("Expanded groups: "), old_expanded != expanded)):
+            if changed or full:
+                lines.append(label + (tr("change") if changed else tr("unchanged")))
+        if current["tree"] != saved["tree"]:
             lines.append(tr("Saved group properties will also be applied; later layers/groups remain."))
     if not restore_view:
         lines.append(tr("Map view: keep current view (setting disabled)."))
@@ -153,4 +188,5 @@ def application_summary(current, saved, *, restore_view=True):
     if extra:
         lines.append(tr("Later layers, kept: ") + ", ".join(sorted(extra)))
     lines.append(tr("No geometry, attributes, data sources or project files are restored. Provider filters may fail; recovery stays available."))
+    lines.insert(0, tr("Style/filter changes: {changed} existing layers; missing: {missing}; snapshot: {total} layers.").format(changed=changed_count, missing=len(missing), total=len(target)))
     return "\n".join(lines)

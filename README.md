@@ -15,12 +15,12 @@ checkpoint and applies a snapshot across existing layers.
 
 ## Install and try it
 
-This is **0.2.0, an experimental local build**. No release has been published.
-The prepared artifact is `dist/checkpoint-0.2.0.zip`, with a `.zip.sha256` sidecar.
+This is **0.2.1, an experimental local build**. No release has been published.
+The prepared artifact is `dist/checkpoint-0.2.1.zip`, with a `.zip.sha256` sidecar.
 To build it from this checkout, run `python3 scripts/package.py`.
 
 1. In QGIS, open **Plugins → Manage and Install Plugins → Install from ZIP** and
-   choose `checkpoint-0.2.0.zip`. Enable Checkpoint. Restart QGIS after updating.
+   choose `checkpoint-0.2.1.zip`. Enable Checkpoint. Restart QGIS after updating.
 2. Open a project. Checkpoint creates a starting point after loading completes.
    Check the panel status before editing. An empty project waits for its layers.
 3. Change the appearance of two layers. **Auto** saves after a 2-second pause in
@@ -29,7 +29,9 @@ To build it from this checkout, run `python3 scripts/package.py`.
 4. Select the starting point. Read **Changes relative to the current project**:
    it describes all affected layers, filters, visibility, groups and the view.
 5. Click **Apply saved map styling**. Click **Undo last application** to return
-   to the state immediately before it.
+   to the state immediately before it. Undo is available once per Apply and also
+   replaces later manual styling edits; those edits receive their own recovery.
+   Drag the details splitter or enable **Show full snapshot contents** as needed.
 
 ![Two-layer styling change and the selected checkpoint's application scope](docs/images/history.png)
 
@@ -78,7 +80,7 @@ an existing destination history is never silently merged or overwritten.
 Moving the file outside QGIS does not move its history. Sending a `.qgz` to someone
 else does not send the history. **History… → Export history…** saves a JSON archive
 for inspection/archival. Import and automatic remapping across projects are not
-supported in 0.2.0; names alone cannot safely identify layers. Use Save As inside
+supported in 0.2.1; names alone cannot safely identify layers. Use Save As inside
 QGIS to continue a history at a new path.
 
 ## Limits and compatibility
@@ -103,7 +105,7 @@ Qt6 and QGIS4 have not been runtime-verified here; Qt6/QGIS4 are not advertised 
 supported. English is the only shipped UI language.
 
 [Installation](docs/install.md) · [Reference](docs/reference.md) ·
-[Validation and limitations](docs/validation-0.2.0.md) ·
+[Validation and limitations](docs/validation-0.2.1.md) ·
 [Usability study plan](docs/usability.md) · [Changelog](CHANGELOG.md)
 
 By Alen Alimzhanov. [GPL-2.0-or-later](LICENSE).

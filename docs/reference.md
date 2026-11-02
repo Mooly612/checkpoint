@@ -52,6 +52,9 @@ Auto waits for a 2-second quiet period in tracked changes, and also for the
 configured minimum gap since the last save. Changes are coalesced. Idle time,
 pan/zoom and expanding/collapsing a group alone do not create entries. Expansion
 is retained when another change or an explicit save captures the snapshot.
+Custom group properties trigger Auto; internal UUIDs do not. WMS/server fields
+and mutual exclusion changes without a visibility signal require manual capture.
+See the complete [Auto signal contract](validation-0.2.1.md#auto-contract).
 
 A failed starting save leaves a clear unavailable state. Save checkpoint retries;
 no protected/active state is shown until a capture succeeds. Manual, Auto and
@@ -68,9 +71,12 @@ exceptions and failed result writes leave recovery available. There is no automa
 rollback that might itself fail silently.
 
 Every application has an event UUID. Its `recovery` record is separate from user
-`pinned` status and names the target. **Undo last application** applies the latest
-available recovery, first preserving the current state. It also makes undoing that
-operation possible. A previous recovery is marked undone only on complete success.
+`pinned` status. **Undo last application** applies the recovery linked to the most
+recent user Apply, first preserving current styling, including subsequent manual
+edits. It is single-level: success disables Undo until another Apply. Partial
+failures retain that same target for retry. The persisted event head survives
+restart; deletion disables Undo without selecting an older recovery. Legacy
+records remain manually applicable but do not provide automatic Undo.
 
 Ordinary entries use the configured limit (default 20). All recovery records are
 protected from ordinary eviction. Explicit cleanup removes older completed/undone

@@ -258,3 +258,30 @@ def test_preview_write_failure_does_not_damage_checkpoint(tmp_path, state, monke
         store.set_preview(record["id"], {"maps": {"after": "jpeg"}})
     assert store.records == [record]
     assert store.path.read_bytes() == old_file
+
+
+def test_undo_head_survives_restart_and_never_falls_back(tmp_path, state):
+    store = HistoryStore(tmp_path, '/undo.qgz')
+    first = store.append_restore(state, before=True, operation='apply')
+    second = store.append_restore(state, before=True, operation='apply')
+    assert HistoryStore(tmp_path, '/undo.qgz').undo_target() == second['id']
+    store.append_restore(state, before=True, operation='undo', undo_of=second['id'])
+    assert store.undo_target() == second['id']
+    store.finish_recovery(second['id'], 'undone')
+    assert HistoryStore(tmp_path, '/undo.qgz').undo_target() is None
+    third = store.append_restore(state, before=True, operation='apply')
+    other = HistoryStore(tmp_path, '/undo.qgz')
+    other.delete(third['id']); store.refresh()
+    assert store.undo_target() is None
+    assert store.get_record(first['id']) is not None
+
+
+def test_metadata_updates_do_not_mutate_previous_snapshots(tmp_path, state):
+    store = HistoryStore(tmp_path)
+    record = store.append(state)
+    old = store.records
+    store.rename(record['id'], 'New')
+    store.set_preview(record['id'], {'maps': {}})
+    assert old[0]['name'] == '' and 'preview' not in old[0]
+    copy = store.get_record(record['id']); copy['state'].clear()
+    assert store.get_record(record['id'])['state']

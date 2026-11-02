@@ -99,7 +99,7 @@ def run():
             assert capture(project, iface.canvas) == after, "Preview modified live state"
             assert pixmap(result["maps"]["after"]).width() == 400
 
-            # Only changed categories are sampled, with a truthful remainder count.
+            # Samples are bounded; the note explicitly discloses uninspected categories.
             def categories(colors):
                 return QgsCategorizedSymbolRenderer("kind", [QgsRendererCategory(i,
                     QgsMarkerSymbol.createSimple({"color": color}), f"Category {i}")
@@ -109,7 +109,8 @@ def run():
             layer.setRenderer(categories(["blue"] * 4))
             after = capture(project, iface.canvas)
             result = preview(project, iface.canvas, before, after)
-            assert len(result["samples"]) == 2 and result["more"] == 2
+            assert len(result["samples"]) == 2 and result["more"] == 0
+            assert "Other changes may exist" in result["note"]
             layer.setRenderer(categories(["blue", "green", "blue", "blue"]))
             one = preview(project, iface.canvas, after, capture(project, iface.canvas))
             assert len(one["samples"]) == 1 and "Category 1" in one["samples"][0]["label"]
