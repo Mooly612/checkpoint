@@ -17,7 +17,9 @@ def build(root=ROOT, output=None):
     root = Path(root)
     metadata = configparser.ConfigParser(interpolation=None)
     metadata.read(root / "checkpoint" / "metadata.txt", encoding="utf-8")
-    for key in ("name", "version", "qgisMinimumVersion", "author", "email", "repository", "icon"):
+    for key in ("name", "version", "description", "about", "qgisMinimumVersion",
+                "author", "email", "repository", "homepage", "tracker", "license",
+                "changelog", "icon"):
         if not metadata.get("general", key, fallback="").strip():
             raise ValueError("Missing metadata: " + key)
     version = metadata["general"]["version"]
@@ -31,7 +33,7 @@ def build(root=ROOT, output=None):
             continue
         if path.is_symlink():
             raise ValueError("Plugin source must not contain symlinks: " + str(relative))
-        if path.is_file() and (path.suffix in {".py", ".svg"} or relative.as_posix() == "metadata.txt"):
+        if path.is_file() and (path.suffix in {".py", ".svg", ".png"} or relative.as_posix() == "metadata.txt"):
             data = path.read_bytes()
             if path.suffix == ".py":
                 ast.parse(data, filename=str(path))

@@ -1,3 +1,9 @@
+## 0.2.2
+
+- Use the supplied PNG artwork in the QGIS toolbar and Options page.
+- Add publication metadata, compatibility/dependency notes and an embedded changelog.
+- Validate the upload archive and document the QGIS pre-upload checklist.
+
 ## 0.2.1
 
 - Single-level Undo with persisted Apply identity; successful Undo consumes the action.

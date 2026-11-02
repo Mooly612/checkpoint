@@ -3,14 +3,18 @@ name=Checkpoint
 qgisMinimumVersion=3.44
 qgisMaximumVersion=3.99
 supportsQt6=False
-description=Local history for map styling, with application scope and recovery.
-about=Local styling history across existing layers: styles, labels, filters, tree and map view. Starting checkpoint, Auto/Manual capture, application scope, recovery and undo, optional saved map previews. SQLite transactions with legacy JSON migration. Experimental QGIS 3.44+ / Qt5 release. Does not back up source data or project files.
-version=0.2.1
+description=Local map styling history and recovery. Requires QGIS 3.44-3.x with Qt5.
+about=Save and restore styles, labels, subset filters, layer groups and map views across existing layers. Includes automatic or manual checkpoints, application scope, single-level Undo and optional historical previews. Requires QGIS 3.44 or newer within 3.x and Qt5; QGIS4/Qt6 are unsupported. No external Python dependencies, account or network service is required. Runtime tested on macOS with QGIS 3.44.8; Windows and Linux have not yet been runtime verified. Does not back up geometry, attributes, source data or project files.
+version=0.2.2
 author=Alen Alimzhanov
 email=mooly612@gmail.com
 repository=https://github.com/Mooly612/checkpoint
 tracker=https://github.com/Mooly612/checkpoint/issues
 homepage=https://github.com/Mooly612/checkpoint
 tags=styling,layers,history,undo,productivity
-icon=icon.svg
+icon=icon.png
+license=GPL-2.0-or-later
+changelog=0.2.2: New toolbar and settings icon; publication metadata and archive validation.
+  0.2.1: Single-level Undo, group property Auto capture, compact resizable details and bounded previews.
+  0.2.0: Transactional history, group metadata, CRS-aware view restore and recovery.
 experimental=True

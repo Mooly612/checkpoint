@@ -41,7 +41,7 @@ class OptionsPage(QgsOptionsPageWidget):
 
 class OptionsFactory(QgsOptionsWidgetFactory):
     def __init__(self, changed):
-        super().__init__("Checkpoint", QIcon(str(Path(__file__).resolve().parents[1] / "icon.svg")))
+        super().__init__("Checkpoint", QIcon(str(Path(__file__).resolve().parents[1] / "icon.png")))
         self.changed = changed
 
     def createWidget(self, parent):

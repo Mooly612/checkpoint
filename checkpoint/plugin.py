@@ -40,7 +40,7 @@ class CheckpointPlugin:
         self.panel = HistoryPanel(self.iface.mainWindow())
         self.iface.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.panel)
         self.action = self.panel.toggleViewAction()
-        self.action.setIcon(QIcon(str(Path(__file__).with_name("icon.svg"))))
+        self.action.setIcon(QIcon(str(Path(__file__).with_name("icon.png"))))
         self.iface.addPluginToMenu("Checkpoint", self.action)
         self.iface.addToolBarIcon(self.action)
         self.options_factory = OptionsFactory(self._apply_options)

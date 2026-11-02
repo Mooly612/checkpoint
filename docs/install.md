@@ -1,14 +1,14 @@
-# Install Checkpoint 0.2.1
+# Install Checkpoint 0.2.2
 
 ## From the prepared ZIP
 
-The local artifact is `dist/checkpoint-0.2.1.zip`. Its checksum is in
-`dist/checkpoint-0.2.1.zip.sha256`. No hosted release download is available.
-From the `dist` directory, verify with `shasum -a 256 -c checkpoint-0.2.1.zip.sha256`
-on macOS, or `sha256sum -c checkpoint-0.2.1.zip.sha256` on Linux.
+The local artifact is `dist/checkpoint-0.2.2.zip`. Its checksum is in
+`dist/checkpoint-0.2.2.zip.sha256`. No hosted release download is available.
+From the `dist` directory, verify with `shasum -a 256 -c checkpoint-0.2.2.zip.sha256`
+on macOS, or `sha256sum -c checkpoint-0.2.2.zip.sha256` on Linux.
 
 1. Open **Plugins → Manage and Install Plugins → Install from ZIP** in QGIS.
-2. Choose `checkpoint-0.2.1.zip` and install. Enable Checkpoint under Installed.
+2. Choose `checkpoint-0.2.2.zip` and install. Enable Checkpoint under Installed.
 3. Restart QGIS after replacing an existing version.
 4. Open a project and confirm the starting checkpoint/status before editing.
 5. Change two layers, select the starting point, read its inline scope, click
@@ -56,7 +56,7 @@ python3 -m venv .venv
 .venv/bin/python -m pytest -q
 python3 scripts/package.py
 # Use the Python interpreter supplied by a working QGIS installation:
-python3 scripts/run_qgis_checks.py --package dist/checkpoint-0.2.1.zip
+python3 scripts/run_qgis_checks.py --package dist/checkpoint-0.2.2.zip
 ```
 
 For the tested macOS QGIS.app bundle (its executable is named python3.12):
@@ -65,7 +65,7 @@ For the tested macOS QGIS.app bundle (its executable is named python3.12):
 env PYTHONHOME=/Applications/QGIS.app/Contents/Frameworks \
   PYTHONPATH=/Applications/QGIS.app/Contents/Resources/python3.11/site-packages \
   /Applications/QGIS.app/Contents/MacOS/python3.12 \
-  scripts/run_qgis_checks.py --package dist/checkpoint-0.2.1.zip
+  scripts/run_qgis_checks.py --package dist/checkpoint-0.2.2.zip
 ```
 
 The runner creates a temporary QGIS profile, extracts the package into a temporary

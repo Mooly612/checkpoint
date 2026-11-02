@@ -45,8 +45,9 @@ with TemporaryDirectory(prefix="checkpoint-checks-") as directory:
         assert Path(app.qgisSettingsDirPath()).is_relative_to(profile)
         import checkpoint
         assert Path(checkpoint.__file__).resolve().is_relative_to(source.resolve())
-        from qgis.PyQt.QtSvg import QSvgRenderer
-        assert QSvgRenderer(str(source / "checkpoint/icon.svg")).isValid()
+        from qgis.PyQt.QtGui import QIcon
+        icon = QIcon(str(source / "checkpoint/icon.png"))
+        assert not icon.isNull() and not icon.pixmap(24, 24).isNull()
         print("Runtime:", Qgis.QGIS_VERSION, "Qt", QT_VERSION_STR, "Python", sys.version.split()[0], flush=True)
         print("Plugin:", checkpoint.__file__, flush=True)
         for name in ("qgis_settings_smoke.py", "qgis_smoke.py", "qgis_watcher_smoke.py",
