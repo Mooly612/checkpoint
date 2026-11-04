@@ -1,5 +1,6 @@
 # Checkpoint
 
+
 ## Video Demo
 Click the preview to watch the demo on YouTube.
 <p align="center">
@@ -10,6 +11,7 @@ Click the preview to watch the demo on YouTube.
   </a>
 </p>
 [▶ Watch the video on YouTube](https://www.youtube.com/watch?v=CVITs8cSiHo&t=8s)
+
 
 Local styling history for QGIS users who experiment with the appearance of several
 layers at once. Keep a starting point, change symbols, labels or filters, inspect
