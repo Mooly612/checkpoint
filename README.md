@@ -1,12 +1,18 @@
 # Checkpoint
 
+## Video Demo
+
+Click the preview to watch the demo on YouTube.
+
 <p align="center">
   <a href="https://www.youtube.com/watch?v=CVITs8cSiHo&t=8s">
     <img src="https://img.youtube.com/vi/CVITs8cSiHo/hqdefault.jpg"
-         alt="Смотреть видео на YouTube"
-         width="560">
+         alt="▶ Watch the Checkpoint demo on YouTube"
+         width="640">
   </a>
 </p>
+
+[▶ Watch the video on YouTube](https://www.youtube.com/watch?v=CVITs8cSiHo&t=8s)
 
 Local styling history for QGIS users who experiment with the appearance of several
 layers at once. Keep a starting point, change symbols, labels or filters, inspect
