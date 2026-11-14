@@ -22,8 +22,9 @@ navigation overhead. Each new PR runs the complete matrix again; the successful
 
 Local validation on 2026-11-14: 105 pure-Python tests and Bandit passed, along
 with all 12 native scenarios from the built ZIP on macOS 27 arm64 / QGIS 3.44.8 /
-Qt 5.15.18 / bundled Python 3.12.11 (exit 0). Hosted 0.3.1 results are pending;
-consult the new PR's Checkpoint checks run for the tested revision and artifacts.
+Qt 5.15.18 / bundled Python 3.12.11 (exit 0). Hosted evidence is attached to
+[PR #2's Checkpoint checks](https://github.com/Mooly612/checkpoint/pull/2/checks);
+match the tested revision and inspect its logs and runtime artifacts.
 The release ZIP is approximately 1.3 MB and contains no QGIS/Qt runtimes.
 
 The runner rejects unknown `--only` scenarios, disabled Python assertions and invalid package members before
