@@ -5,6 +5,7 @@ from ..i18n import tr
 import math
 from uuid import uuid4
 from . import safe_xml as ElementTree
+from .compat import REQUIREMENT, supported_runtime
 
 from qgis.core import (
     Qgis, QgsApplication, QgsCoordinateReferenceSystem, QgsCoordinateTransform,
@@ -22,8 +23,8 @@ class SnapshotError(ValueError):
 
 
 def _main_thread():
-    if not 34400 <= Qgis.QGIS_VERSION_INT < 40000 or not QT_VERSION_STR.startswith("5."):
-        raise SnapshotError(tr("Checkpoint 0.2 requires QGIS 3.44 or newer in the 3.x series with Qt5. No styling was applied."))
+    if not supported_runtime(Qgis.QGIS_VERSION_INT, Qgis.QGIS_VERSION, QT_VERSION_STR):
+        raise SnapshotError(tr(REQUIREMENT))
     app = QgsApplication.instance()
     if app is None or QThread.currentThread() != app.thread():
         raise RuntimeError(tr("Checkpoint capture and apply require the QGIS GUI thread"))

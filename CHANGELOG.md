@@ -1,3 +1,15 @@
+## 0.3.0
+
+- One package targets stable QGIS 3.44 / Qt5 and QGIS 4.0, 4.2 / Qt6.
+- Replace the Qt5-only runtime gate with explicit release/Qt pairs; reject
+  prereleases and newer unvalidated release lines before capture or application.
+- Run Python/storage/package checks on macOS, Windows and Linux in GitHub Actions.
+- Configure native QGIS jobs using official Windows installers, Linux images and
+  macOS bundles; record runtime versions and passed scenarios as JSON artifacts.
+- Discover the selected macOS bundle instead of injecting a hard-coded QGIS.app.
+- Retain the existing history schema and experimental plugin status. Actual
+  platform verification is documented separately from compatibility targets.
+
 ## 0.2.3
 
 - Reject XML entities and external references with bundled defusedxml 0.7.1.

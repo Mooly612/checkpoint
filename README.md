@@ -1,6 +1,5 @@
 # Checkpoint
 
-
 ## Video Demo
 Click the preview to watch the demo on YouTube.
 <p align="center">
@@ -11,7 +10,6 @@ Click the preview to watch the demo on YouTube.
   </a>
 </p>
 [▶ Watch the video on YouTube](https://www.youtube.com/watch?v=CVITs8cSiHo&t=8s)
-
 
 Local styling history for QGIS users who experiment with the appearance of several
 layers at once. Keep a starting point, change symbols, labels or filters, inspect
@@ -28,12 +26,15 @@ checkpoint and applies a snapshot across existing layers.
 
 ## Install and try it
 
-This is **0.2.3, an experimental build prepared for QGIS repository submission**.
-The prepared artifact is `dist/checkpoint-0.2.3.zip`, with a `.zip.sha256` sidecar.
+This is **0.3.0, an experimental compatibility build**. One package targets
+stable **QGIS 3.44 / Qt5 and QGIS 4.0, 4.2 / Qt6**, on macOS, Windows and Linux.
+Development builds and newer unvalidated release lines are refused. See the
+[compatibility report](docs/compatibility.md) for actual verification status.
+The prepared artifact is `dist/checkpoint-0.3.0.zip`, with a `.zip.sha256` sidecar.
 To build it from this checkout, run `python3 scripts/package.py`.
 
 1. In QGIS, open **Plugins → Manage and Install Plugins → Install from ZIP** and
-   choose `checkpoint-0.2.3.zip`. Enable Checkpoint. Restart QGIS after updating.
+   choose `checkpoint-0.3.0.zip`. Enable Checkpoint. Restart QGIS after updating.
 2. Open a project. Checkpoint creates a starting point after loading completes.
    Check the panel status before editing. An empty project waits for its layers.
 3. Change the appearance of two layers. **Auto** saves after a 2-second pause in
@@ -112,10 +113,13 @@ There is no telemetry, account or cloud service. QGIS providers may contact thei
 sources while rendering.
 
 Verified locally: **QGIS 3.44.8 / Qt 5.15.18 / Python 3.12.11 on macOS**.
-The metadata targets QGIS 3.44–3.x with Qt5. Earlier versions are refused before
-application because the supported group-property APIs require 3.44. Other QGIS versions, Windows, Linux,
-Qt6 and QGIS4 have not been runtime-verified here; Qt6/QGIS4 are not advertised as
-supported. English is the only shipped UI language.
+The release targets are QGIS 3.44 / Qt5 and QGIS 4.0, 4.2 / Qt6. Earlier versions
+are refused before application because the group-property APIs require 3.44.
+Native GitHub Actions jobs are configured for Linux and macOS on 3.44 and 4.2,
+and Windows on 3.44, 4.0 and 4.2. Configured jobs are not proof of passing checks:
+see the [compatibility report](docs/compatibility.md) and each run's logs.
+No compiled libraries or separate Qt bindings are bundled. English is the only
+shipped UI language.
 
 [Installation](docs/install.md) · [Reference](docs/reference.md) ·
 [Validation and limitations](docs/validation-0.2.1.md) ·

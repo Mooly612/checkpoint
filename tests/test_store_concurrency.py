@@ -155,6 +155,19 @@ def test_saved_maps_are_immutable_and_export_is_detached(tmp_path, state):
     assert json.loads(output.read_text())['records'] == store.records
 
 
+def test_unicode_paths_export_and_reopen(tmp_path, state):
+    root = tmp_path / 'История 地图 with spaces'
+    project = str(tmp_path / 'Проект 地图 with spaces.qgz')
+    store = HistoryStore(root, project)
+    entry = store.append(state, name='До изменений 修改前', pinned=True)
+    output = root / 'Экспорт 历史 with spaces.json'
+    store.export(output)
+    exported = json.loads(output.read_text(encoding='utf-8'))
+    assert exported['records'] == [entry]
+    assert HistoryStore(root, project).records == [entry]
+    assert not list(root.glob('*.tmp'))
+
+
 def test_save_as_copy_keeps_source_and_refuses_existing_destination(tmp_path, variant):
     source = HistoryStore(tmp_path, '/one.qgz')
     first = source.append(variant(1), pinned=True)
