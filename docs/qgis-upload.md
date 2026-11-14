@@ -27,7 +27,8 @@ is below the 25 MB limit; development caches and Git metadata are excluded.
 
 The build remains **experimental**. Targets stable QGIS 3.44 / Qt5 and QGIS
 4.0, 4.2 / Qt6 on macOS, Windows and Linux. Read compatibility.md for completed
-verification and pending CI checks; do not treat configured jobs as passing tests.
+verification and links to the successful CI run. All 16 hosted jobs passed;
+this does not replace the QGIS repository approval process.
 Existing shutdown-investigation limitations are recorded in validation-0.2.1.md.
 Before publication, review the new native matrix results and run the repository's
 Qt6 compatibility checker. This document does not claim that a public 0.3.0

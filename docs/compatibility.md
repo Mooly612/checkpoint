@@ -2,7 +2,7 @@
 
 One pure-Python ZIP targets macOS, Windows and Linux. It uses the Qt binding
 provided by QGIS through `qgis.PyQt`; QGIS, Qt and Python are not included in it.
-The plugin remains experimental while the new matrix is being validated.
+The plugin remains experimental.
 
 ## Release policy
 
@@ -17,12 +17,23 @@ Future releases require native verification and an explicit policy update.
 
 The table records completed execution, not just intended compatibility.
 
-| Environment | Target | Status |
-| --- | --- | --- |
-| macOS arm64, local QGIS.app | 3.44.8 / Qt 5.15.18 / Python 3.12.11 | All 11 native ZIP scenarios passed; process exit 0 |
-| Linux, official QGIS Docker images | 3.44-noble and 4.2 | CI configured; execution pending |
-| Windows, official standalone MSI | 3.44.15, 4.0.3, 4.2.3 | CI configured; execution pending |
-| macOS, Homebrew official QGIS bundles | 3.44 LTR and 4.2 | CI configured; execution pending |
+| Environment | QGIS | Qt | Python | Result |
+| --- | --- | --- | --- | --- |
+| macOS 27 arm64, local QGIS.app | 3.44.8 | 5.15.18 | 3.12.11 | 11 native ZIP scenarios passed; exit 0 |
+| Linux x86_64, official 3.44-noble image | 3.44.15 | 5.15.13 | 3.12.3 | 11 native ZIP scenarios passed; exit 0 |
+| Linux x86_64, official 4.2 image | 4.2.3 | 6.10.2 | 3.14.4 | 11 native ZIP scenarios passed; exit 0 |
+| Windows Server 2022 x64, official MSI | 3.44.15 | 5.15.13 | 3.12.15 | 11 native ZIP scenarios passed; exit 0 |
+| Windows Server 2022 x64, official MSI | 4.0.3 | 6.11.0 | 3.12.13 | 11 native ZIP scenarios passed; exit 0 |
+| Windows Server 2022 x64, official MSI | 4.2.3 | 6.11.0 | 3.12.15 | 11 native ZIP scenarios passed; exit 0 |
+| macOS 15.8.2 arm64, official LTR bundle | 3.44.15 | 5.15.19 | 3.12.11 | 11 native ZIP scenarios passed; exit 0 |
+| macOS 15.8.2 arm64, official 4.2 bundle | 4.2.3 | 6.11.1 | 3.12.11 | 11 native ZIP scenarios passed; exit 0 |
+
+The [complete hosted run](https://github.com/Mooly612/checkpoint/actions/runs/43584987417)
+passed all 16 jobs on 2026-11-14: nine Python/package jobs and seven native QGIS
+jobs. Each Python job passed all 83 tests and Bandit. The tested code revision is
+`050a3797615c64f306f8db9445d945aae541bbdd`; the following documentation update
+records these results without changing plugin code. QGIS 4.0 was executed on
+Windows only; macOS and Linux native coverage is 3.44 and 4.2.
 
 The workflow also runs pure Python tests, SQLite concurrency, malicious XML checks,
 Bandit and reproducible packaging across all three OS runners and Python
