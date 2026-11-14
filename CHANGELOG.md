@@ -1,0 +1,149 @@
+## 0.3.1
+
+- Stop serializing every layer's style on map pan/zoom; refresh application
+  details on styling and CRS changes and on checkpoint selection.
+- Re-enable Apply after a transient details error, and cancel/ignore details
+  refreshes while project loading or Save As has paused history.
+- Reject unsupported runtimes before adopting group identities; recognize
+  attached RC suffixes, nightly/pre builds and inconsistent version metadata.
+- Keep retention settings and Undo unchanged when a database refresh fails.
+- Reject misspelled native scenarios and malformed archives; replace stale
+  successful reports and record failures before a run can claim success.
+- Isolate the selected macOS bundle from foreign Qt/PROJ environment paths and
+  avoid selecting python-config executables as Python interpreters.
+- Keep the agreed QGIS/Qt matrix and history schemas unchanged. Add native
+  regressions on that matrix and cancel superseded CI runs for the same PR.
+
+## 0.3.0
+
+- One package targets stable QGIS 3.44 / Qt5 and QGIS 4.0, 4.2 / Qt6.
+- Replace the Qt5-only runtime gate with explicit release/Qt pairs; reject
+  prereleases and newer unvalidated release lines before capture or application.
+- Run Python/storage/package checks on macOS, Windows and Linux in GitHub Actions.
+- Configure native QGIS jobs using official Windows installers, Linux images and
+  macOS bundles; record runtime versions and passed scenarios as JSON artifacts.
+- Discover the selected macOS bundle instead of injecting a hard-coded QGIS.app.
+- Retain the existing history schema and experimental plugin status. Actual
+  platform verification is documented separately from compatibility targets.
+
+## 0.2.3
+
+- Reject XML entities and external references with bundled defusedxml 0.7.1.
+- Validate XML before Qt parsing and canonicalization; include dependency license.
+- Add malicious XML regression tests and run Bandit against the plugin.
+
+## 0.2.2
+
+- Use the supplied PNG artwork in the QGIS toolbar and Options page.
+- Add publication metadata, compatibility/dependency notes and an embedded changelog.
+- Validate the upload archive and document the QGIS pre-upload checklist.
+
+## 0.2.1
+
+- Single-level Undo with persisted Apply identity; successful Undo consumes the action.
+- Auto observes propagated custom group properties and ignores internal group UUIDs.
+- Resizable details, optional full contents, and metadata updates without project capture.
+- Bounded symbol samples, bounded active map jobs, XML cache and lighter metadata writes.
+- Additional native failure/lifecycle tests and reproducible profiling scripts.
+
+# Changelog
+
+## 0.2.0 (2026-11-03, experimental local build)
+
+- Retain native group metadata, mutually exclusive selection and stable identity.
+  Legacy snapshots keep the current tree; unsupported group layers refuse safely.
+- Replace stale-list JSON writes with SQLite transactions and a short busy timeout.
+  Preserve legacy JSON, user pins and independent writers; deletion never resurrects.
+- Save view CRS, transform centers/extent, preserve saved scale, and skip unsafe views.
+- Capture a session starting point and show Auto, Manual, unavailable and memory-only states.
+  Normalize style XML hashes so unchanged projects do not duplicate history across processes.
+- Add current-project application scope, explicit Preview, Apply and Undo controls.
+- Separate recovery from user pins; link application events and provide explicit cleanup.
+- Keep lightweight samples with maps off, expose Retry maps, measure preparation and
+  rendering separately, and tolerate late render completion after cancellation.
+- Add a Save As choice, safe history copying and JSON export. Cross-project import
+  remains unsupported until layer/source identity can be mapped safely.
+- Add a synthetic real QGIS demo, current native-widget screenshots, concurrency/
+  regression checks, CI configuration and reproducible versioned ZIP packaging.
+- Require QGIS 3.44+ within 3.x / Qt5, with a runtime guard before mutations. Runtime verification remains QGIS 3.44.8 on macOS.
+
+
+## 0.1.0 (2026-11-02, experimental local build)
+
+### Milestone 1
+
+- Added experimental plugin metadata and an SVG icon.
+- Added deterministic tree, style, and filter hashing with readable descriptions.
+- Excluded extent and scale from styling hashes while retaining them in history.
+- Added atomic disk history and isolated in-memory unsaved-project histories.
+- Added duplicate skipping, bounded unpinned history, pins, names, and deletion.
+- Added migration on first save and preservation of pre-existing project history.
+- Added pytest coverage without QGIS dependencies.
+
+### Milestone 2
+
+- Added QGIS capture and restore with a plain-data boundary.
+- Captured nested groups, layer order, local visibility, and expanded state.
+- Added full style XML and vector/point-cloud subset filter restoration.
+- Added optional extent and scale restoration, including scale-locked canvases.
+- Preserved later layers and skipped deleted IDs with plain notices for the UI.
+- Prepared replacement trees before mutation and inserted new references before
+  removing old nodes to avoid layer registry deletion.
+- Added API references and an opt-in real-QGIS smoke script; executed from milestone 3 onward.
+
+### Milestone 3
+
+- Added the plugin entry point, toolbar/menu toggle, and native history dock.
+- Added Auto/Manual mode, adjustable minimum gap, and manual save in both modes.
+- Added one signal-driven scheduling timer with two-second debounce and no
+  periodic snapshots. Pan/zoom events are not watched.
+- Added nested restore suppression through the following event-loop turn.
+- Connected new layers and disconnected removed layers and unloaded plugins.
+- Added project lifecycle handling, first-save migration, and isolated histories
+  after Save As or opening another project.
+- Added an explicit maximum QGIS version of 4.99 and exact macOS install steps.
+- Ran all 37 pure-core tests and three real-QGIS smoke scripts on QGIS 3.44.8,
+  Qt 5.15.18, Python 3.12.11 using offscreen Qt.
+
+### Milestone 4
+
+- Added an explicit Restore selected checkpoint button with selection gating.
+- Persisted a pinned before-restore snapshot before applying any map changes.
+- Recorded the actual restored state as a new unpinned event, retaining later history.
+- Allowed duplicate hashes only for explicit restore events to retain exact views.
+- Suppressed automatic capture during restore and the following event-loop turn.
+- Reported missing layers, rejected filters, partial application, and storage failures.
+- Added core tests and real-QGIS controller checks for restore/undo, unchanged
+  restore, exact view recovery, missing layers, and before/result write failures.
+
+### Milestone 5
+
+- Added compact before/after symbol samples, changed-category counts, and daily dates.
+- Added click-open saved map comparisons at matching extents, focused on a
+  representative changed-layer feature with visible context.
+- Added a persistent Previews checkbox; disabled mode renders/stores no images.
+- Saved immutable preview artifacts inside history records, including before images.
+- Added detached layer rendering with parallel jobs, a shared two-second budget,
+  nonblocking cancellation, and a persistent per-project heavy-render fuse.
+- Retained rendering resources until cancelled jobs finish, including during unload.
+- Added real-QGIS coverage for rendering, symbol samples, lifecycle and timeout,
+  plus pure-core artifact migration/eviction and storage-failure tests.
+
+### Milestone 6
+
+- Added a standard QGIS Options page for previews, map-view restoration, unpinned
+  history limit, and default capture interval.
+- Added Pin/Unpin, Rename, and Delete controls. Deletion requires confirmation,
+  with an explicit pinned-record warning and No as the default.
+- Registered/unregistered the Options factory with plugin lifecycle and added
+  actual QGIS widget checks for applying options and editing history.
+
+### Milestone 7
+
+- Updated release metadata, user documentation, installation instructions, and limitations.
+- Added a deterministic ZIP packager with syntax, metadata, and archive checks.
+- Included the GPL license, SVG icon, and documentation in the installable package.
+- Added package tests and a disposable-profile QGIS runner for source and extracted ZIP.
+- Searched the QGIS catalog for the plugin name; no matching indexed name was found.
+- Kept experimental status: QGIS 3.28 and QGIS 4/Qt6 runtime checks remain outstanding.
+- No catalog upload or remote release publication was performed.

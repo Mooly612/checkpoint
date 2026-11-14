@@ -1,0 +1,149 @@
+name: Checkpoint checks
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checkpoint-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python-and-package:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2022, macos-15]
+        python: ['3.10', '3.12', '3.14']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '${{ matrix.python }}'
+      - run: python -m pip install -r requirements-dev.txt
+      - run: python -m pytest -q
+      - run: python -m bandit -r checkpoint -q
+      - run: python scripts/package.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: checkpoint-${{ matrix.os }}-python-${{ matrix.python }}
+          path: dist/checkpoint-*.zip*
+  qgis-linux:
+    needs: python-and-package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - qgis: '3.44'
+            image: 'qgis/qgis:3.44-noble'
+          - qgis: '4.2'
+            image: 'qgis/qgis:4.2'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build universal package
+        run: python3 scripts/package.py --output dist/checkpoint.zip
+      - name: Run extracted ZIP in released QGIS
+        env:
+          QGIS_IMAGE: ${{ matrix.image }}
+          QGIS_RELEASE: ${{ matrix.qgis }}
+        run: |
+          set -o pipefail
+          mkdir -p dist/reports
+          docker run --rm --entrypoint python3 \
+            -e QT_QPA_PLATFORM=offscreen -e PYTHONUNBUFFERED=1 \
+            -v "$PWD:/tests_directory" -w /tests_directory "$QGIS_IMAGE" \
+            scripts/run_qgis_checks.py --package dist/checkpoint.zip \
+            --expected-qgis "$QGIS_RELEASE" --report dist/reports/runtime.json \
+            2>&1 | tee dist/reports/runtime.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: qgis-linux-${{ matrix.qgis }}
+          path: dist/reports/
+
+  qgis-windows:
+    needs: python-and-package
+    runs-on: windows-2022
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        qgis: ['3.44', '4.0', '4.2']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python scripts/package.py --output dist/checkpoint.zip
+      - name: Install released QGIS with its bundled Python
+        shell: pwsh
+        env:
+          QGIS_RELEASE: ${{ matrix.qgis }}
+        run: |
+          $launcher = & ./scripts/install_qgis_windows.ps1 -Release $env:QGIS_RELEASE -Root "$env:RUNNER_TEMP/QGIS Checkpoint"
+          "QGIS_PYTHON=$launcher" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Run extracted ZIP in QGIS
+        shell: pwsh
+        env:
+          QGIS_RELEASE: ${{ matrix.qgis }}
+          QT_QPA_PLATFORM: offscreen
+          PYTHONUTF8: '1'
+          PYTHONUNBUFFERED: '1'
+        run: |
+          New-Item -ItemType Directory -Force dist/reports | Out-Null
+          & $env:QGIS_PYTHON scripts/run_qgis_checks.py --package dist/checkpoint.zip --expected-qgis $env:QGIS_RELEASE --report dist/reports/runtime.json 2>&1 | Tee-Object -FilePath dist/reports/runtime.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: qgis-windows-${{ matrix.qgis }}
+          path: |
+            dist/reports/
+            ${{ runner.temp }}/qgis-install.log
+
+  qgis-macos:
+    needs: python-and-package
+    runs-on: macos-15
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - qgis: '3.44'
+            cask: 'qgis@ltr'
+          - qgis: '4.2'
+            cask: 'qgis'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python scripts/package.py --output dist/checkpoint.zip
+      - name: Install released QGIS
+        env:
+          QGIS_CASK: ${{ matrix.cask }}
+        run: brew install --cask "$QGIS_CASK"
+      - name: Run extracted ZIP using the bundle's Python
+        env:
+          QGIS_RELEASE: ${{ matrix.qgis }}
+        run: |
+          set -o pipefail
+          mkdir -p dist/reports
+          QGIS_APP=$(find /Applications -maxdepth 1 -type d -name 'QGIS*.app' -print -quit)
+          test -n "$QGIS_APP"
+          python scripts/run_qgis_macos.py --app "$QGIS_APP" \
+            --package dist/checkpoint.zip --expected-qgis "$QGIS_RELEASE" \
+            --report dist/reports/runtime.json 2>&1 | tee dist/reports/runtime.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: qgis-macos-${{ matrix.qgis }}
+          path: dist/reports/
