@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, windows-2022, macos-14]
+        os: [ubuntu-24.04, windows-2022, macos-15]
         python: ['3.10', '3.12', '3.14']
     steps:
       - uses: actions/checkout@v4
@@ -107,7 +107,7 @@ jobs:
 
   qgis-macos:
     needs: python-and-package
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 45
     strategy:
       fail-fast: false
