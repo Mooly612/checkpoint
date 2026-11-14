@@ -91,7 +91,7 @@ with TemporaryDirectory(prefix="checkpoint-checks-") as directory:
         import gc
         from qgis.PyQt.QtCore import QCoreApplication, QEvent
         gc.collect()
-        QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
         gc.collect()
         app.exitQgis()
         if args.report:

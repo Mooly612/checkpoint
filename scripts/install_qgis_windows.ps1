@@ -4,6 +4,7 @@ param(
     [Parameter(Mandatory)][string]$Root
 )
 $ErrorActionPreference = 'Stop'
+$Root = [System.IO.Path]::GetFullPath($Root)
 if (Test-Path $Root) { throw "Refusing to replace existing installation: $Root" }
 $versions = @{ '3.44' = '3.44.15-2'; '4.0' = '4.0.3-1'; '4.2' = '4.2.3-2' }
 $name = "QGIS-OSGeo4W-$($versions[$Release]).msi"
@@ -22,7 +23,10 @@ if ((Get-FileHash $installer -Algorithm SHA256).Hash -ne $match.Value) {
 }
 $arguments = @('/i', "`"$installer`"", '/qn', '/norestart', "INSTALLDIR=`"$Root`"", '/L*v', "`"$log`"")
 $process = Start-Process msiexec.exe -ArgumentList $arguments -Wait -PassThru
-if ($process.ExitCode -notin @(0, 3010)) { throw "QGIS install failed: $($process.ExitCode); see $log" }
+if ($process.ExitCode -notin @(0, 3010)) {
+    if (Test-Path $log) { Get-Content $log -Tail 150 | ForEach-Object { Write-Host $_ } }
+    throw "QGIS install failed: $($process.ExitCode); see $log"
+}
 $launchers = @(Get-ChildItem (Join-Path $Root 'bin') -Filter 'python-qgis*.bat' |
     Where-Object { $_.Name -notmatch 'dev' })
 if ($launchers.Count -ne 1) { throw "Expected one QGIS Python launcher in $Root/bin" }

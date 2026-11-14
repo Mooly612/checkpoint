@@ -8,8 +8,8 @@ root=Path(__file__).resolve().parents[1]
 source=(root/'scripts/run_qgis_checks.py').read_text()
 variants={'fixed':source}
 if args.matrix:
-    variants['legacy']=source.replace('        gc.collect()','        pass').replace('        QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)','        pass')
-    variants['gc_only']=source.replace('        QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)','        pass')
+    variants['legacy']=source.replace('        gc.collect()','        pass').replace('        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)','        pass')
+    variants['gc_only']=source.replace('        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)','        pass')
     variants['deferred_only']=source.replace('        gc.collect()','        pass')
 for name,script in variants.items():
     code='import sys\nsys.argv=["runner","--only","qgis_shutdown_smoke"]\n__file__='+repr(str(root/'scripts/run_qgis_checks.py'))+'\nexec(compile('+repr(script)+',__file__,"exec"))'
