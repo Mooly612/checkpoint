@@ -155,6 +155,19 @@ def test_saved_maps_are_immutable_and_export_is_detached(tmp_path, state):
     assert json.loads(output.read_text())['records'] == store.records
 
 
+def test_unicode_paths_export_and_reopen(tmp_path, state):
+    root = tmp_path / 'История 地图 with spaces'
+    project = str(tmp_path / 'Проект 地图 with spaces.qgz')
+    store = HistoryStore(root, project)
+    entry = store.append(state, name='До изменений 修改前', pinned=True)
+    output = root / 'Экспорт 历史 with spaces.json'
+    store.export(output)
+    exported = json.loads(output.read_text(encoding='utf-8'))
+    assert exported['records'] == [entry]
+    assert HistoryStore(root, project).records == [entry]
+    assert not list(root.glob('*.tmp'))
+
+
 def test_save_as_copy_keeps_source_and_refuses_existing_destination(tmp_path, variant):
     source = HistoryStore(tmp_path, '/one.qgz')
     first = source.append(variant(1), pinned=True)
@@ -175,3 +188,27 @@ def test_failed_refresh_does_not_cache_an_invalid_revision(tmp_path, state):
         with pytest.raises(HistoryError):
             store.refresh()
         assert store.records == [record]
+
+
+def test_failed_refresh_preserves_retention_and_undo(tmp_path, state):
+    store = HistoryStore(tmp_path, '/map.qgz', limit=7)
+    recovery = store.append_restore(state, before=True, operation='apply')
+    before = store.records
+    with sqlite3.connect(store.path) as db:
+        db.execute("UPDATE settings SET value='999' WHERE key='revision'")
+        db.execute("UPDATE settings SET value='1' WHERE key='limit'")
+        db.execute("UPDATE settings SET value='missing' WHERE key='undo_head'")
+        db.execute("UPDATE records SET payload='{}'")
+    for _ in range(2):
+        with pytest.raises(HistoryError):
+            store.refresh()
+        assert store.records == before
+        assert store.limit == 7
+        assert store.undo_target() == recovery['id']
+
+    # Repair is observed on retry, without reopening the store or losing Undo.
+    with sqlite3.connect(store.path) as db:
+        db.execute("UPDATE records SET payload=?", (json.dumps(recovery),))
+        db.execute("UPDATE settings SET value=? WHERE key='undo_head'", (recovery['id'],))
+    store.refresh()
+    assert store.limit == 1 and store.undo_target() == recovery['id']

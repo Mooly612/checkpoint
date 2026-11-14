@@ -21,8 +21,8 @@ def test_release_archive_is_complete_and_reproducible(tmp_path):
         metadata = configparser.ConfigParser()
         metadata.read_string(archive.read("checkpoint/metadata.txt").decode())
         assert metadata["general"]["qgisMinimumVersion"] == "3.44"
-        assert metadata["general"]["qgisMaximumVersion"] == "3.99"
-        assert not metadata["general"].getboolean("supportsQt6")
+        assert metadata["general"]["qgisMaximumVersion"] == "4.2.99"
+        assert "supportsQt6" not in metadata["general"]
         general = metadata["general"]
         assert general["license"] == "GPL-2.0-or-later"
         assert general["version"] in general["changelog"]

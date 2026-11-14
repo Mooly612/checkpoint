@@ -1,25 +1,29 @@
-# Install Checkpoint 0.2.3
+# Install Checkpoint 0.3.1
 
 ## From the prepared ZIP
 
-The local artifact is `dist/checkpoint-0.2.3.zip`. Its checksum is in
-`dist/checkpoint-0.2.3.zip.sha256`. No hosted release download is available.
-From the `dist` directory, verify with `shasum -a 256 -c checkpoint-0.2.3.zip.sha256`
-on macOS, or `sha256sum -c checkpoint-0.2.3.zip.sha256` on Linux.
+Build the ZIP from a source checkout using `python3 scripts/package.py`. This
+creates `dist/checkpoint-0.3.1.zip` and `dist/checkpoint-0.3.1.zip.sha256`.
+The `dist/` directory is not committed to GitHub; there is no GitHub Release yet.
+From the `dist` directory, verify with `shasum -a 256 -c checkpoint-0.3.1.zip.sha256`
+on macOS, or `sha256sum -c checkpoint-0.3.1.zip.sha256` on Linux.
+On Windows PowerShell, run `Get-FileHash .\checkpoint-0.3.1.zip -Algorithm SHA256`
+and compare the hash with the first field of the `.sha256` file.
 
 1. Open **Plugins → Manage and Install Plugins → Install from ZIP** in QGIS.
-2. Choose `checkpoint-0.2.3.zip` and install. Enable Checkpoint under Installed.
+2. Choose `checkpoint-0.3.1.zip` and install. Enable Checkpoint under Installed.
 3. Restart QGIS after replacing an existing version.
 4. Open a project and confirm the starting checkpoint/status before editing.
 5. Change two layers, select the starting point, read its inline scope, click
    **Apply saved map styling**, then **Undo last application**.
 
-QGIS 3.44 or newer within the 3.x series, with Qt5, is required. Earlier QGIS
-versions and Qt6/QGIS4 are refused before styling can change.
+Targets stable QGIS 3.44 / Qt5 and QGIS 4.0, 4.2 / Qt6 on macOS, Windows and
+Linux. Development builds and unvalidated release lines are refused before styling
+can change. See [compatibility](compatibility.md) for actual verification status.
 
 The ZIP has one top-level `checkpoint/` directory, includes the synthetic `demo/`
 project and its GeoJSON sources, and needs no extra Python
-packages. It is experimental. Runtime-verified here on QGIS 3.44.8 / Qt5 on macOS.
+packages. It is experimental. See the compatibility report for native test coverage.
 Do not install over a development symlink; use a separate QGIS profile for ZIP
 validation.
 
@@ -56,16 +60,15 @@ python3 -m venv .venv
 .venv/bin/python -m pytest -q
 python3 scripts/package.py
 # Use the Python interpreter supplied by a working QGIS installation:
-python3 scripts/run_qgis_checks.py --package dist/checkpoint-0.2.3.zip
+python3 scripts/run_qgis_checks.py --package dist/checkpoint-0.3.1.zip
 ```
 
-For the tested macOS QGIS.app bundle (its executable is named python3.12):
+For macOS, use the Python bundled with the selected QGIS application:
 
 ```sh
-env PYTHONHOME=/Applications/QGIS.app/Contents/Frameworks \
-  PYTHONPATH=/Applications/QGIS.app/Contents/Resources/python3.11/site-packages \
-  /Applications/QGIS.app/Contents/MacOS/python3.12 \
-  scripts/run_qgis_checks.py --package dist/checkpoint-0.2.3.zip
+python3 scripts/run_qgis_macos.py --app /Applications/QGIS.app \
+  --package dist/checkpoint-0.3.1.zip --expected-qgis 3.44 \
+  --report dist/reports/macos-3.44.json
 ```
 
 The runner creates a temporary QGIS profile, extracts the package into a temporary

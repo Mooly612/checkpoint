@@ -104,17 +104,20 @@ class HistoryStore:
         version = db.execute("PRAGMA user_version").fetchone()[0]
         if version != 2:
             raise HistoryError(tr("Unsupported database format"))
-        self.limit = int(db.execute("SELECT value FROM settings WHERE key='limit'").fetchone()[0])
-        self._validate_limit(self.limit)
+        limit = int(db.execute("SELECT value FROM settings WHERE key='limit'").fetchone()[0])
+        self._validate_limit(limit)
         head = db.execute("SELECT value FROM settings WHERE key='undo_head'").fetchone()
-        self._undo_head = head[0] if head else None
+        undo_head = head[0] if head else None
         row = db.execute("SELECT value FROM settings WHERE key='revision'").fetchone()
         revision = int(row[0]) if row else 0
         if self._revision == revision and hasattr(self, "_records"):
-            return self._records
-        records = validate_records([json.loads(row[0]) for row in db.execute(
-            "SELECT payload FROM records ORDER BY position")])
-        self._revision = revision
+            records = self._records
+        else:
+            records = validate_records([json.loads(row[0]) for row in db.execute(
+                "SELECT payload FROM records ORDER BY position")])
+        # Publish the settings and cache token only after the entire read is
+        # valid. A failed refresh must not silently change retention or Undo.
+        self.limit, self._undo_head, self._revision = limit, undo_head, revision
         return records
 
     def _read(self):

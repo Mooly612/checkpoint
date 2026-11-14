@@ -12,7 +12,7 @@ from qgis.PyQt.QtWidgets import QFileDialog, QInputDialog, QMessageBox
 
 from .core.differ import application_summary
 from .core.thumbnail import PreviewTask
-from .core.snapshot import adopt_tree_identity, capture, prepare_restore, prepare_view, restore
+from .core.snapshot import _main_thread, adopt_tree_identity, capture, prepare_restore, prepare_view, restore
 from .core.store import HistoryStore, HistoryError, project_key
 from .core.watcher import Watcher, disconnect
 from .ui.panel import HistoryPanel
@@ -71,7 +71,6 @@ class CheckpointPlugin:
             (self.iface.projectRead, self._session_ready),
             (self.iface.newProjectCreated, self._session_ready),
             (self.iface.mapCanvas().destinationCrsChanged, self._schedule_details),
-            (self.iface.mapCanvas().extentsChanged, self._schedule_details),
         ):
             signal.connect(slot)
             self._connections.append((signal, slot))
@@ -236,6 +235,9 @@ class CheckpointPlugin:
         self.store, self._last_recovery_id, self._save_error = None, None, ""
         self.panel.set_records([])
         try:
+            # Reject unsupported runtimes before adopting saved group IDs or
+            # attaching watchers, including when the current project is empty.
+            _main_thread()
             self.store = HistoryStore(self.root, self.project.fileName(), self.settings.value("checkpoint/limit", 20, type=int))
             records = self.store.records
             if records and records[-1]["state"].get("schema") == 2:
@@ -273,6 +275,7 @@ class CheckpointPlugin:
                 if not self._unloaded and self.store is store and not store.has_records else None)
 
     def _path_changed(self):
+        self._details_timer.stop()
         self._cancel_preview()
         self._stop_watcher()
         self.panel.set_available(False, tr("Project path changed. Complete saving or opening to resume history."))
@@ -339,11 +342,11 @@ class CheckpointPlugin:
         self._preview_status()
 
     def _schedule_details(self, *args):
-        if not self._unloaded:
+        if not self._unloaded and self.watcher is not None:
             self._details_timer.start(150)
 
     def _update_details(self, *args):
-        if self._unloaded or self.panel is None or self.store is None or self._busy:
+        if self._unloaded or self.panel is None or self.store is None or self.watcher is None or self._busy:
             return
         target = self.panel._records.get(self.panel.selected_id())
         if target is None:
@@ -358,6 +361,7 @@ class CheckpointPlugin:
                 if notice:
                     summary += "\n" + notice
             self.panel.details.setPlainText(summary)
+            self.panel.restore_button.setEnabled(self.panel._available)
         except Exception as exc:
             self.panel.details.setPlainText(tr("Application unavailable: ") + str(exc))
             self.panel.restore_button.setEnabled(False)

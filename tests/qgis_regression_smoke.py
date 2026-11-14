@@ -91,9 +91,10 @@ def run():
 
         # Metadata and runtime guards agree; unsupported environments fail before mutation.
         for namespace, replacement in (
-            ('checkpoint.core.snapshot.Qgis', SimpleNamespace(QGIS_VERSION_INT=34000)),
-            ('checkpoint.core.snapshot.Qgis', SimpleNamespace(QGIS_VERSION_INT=40000)),
-            ('checkpoint.core.snapshot.QT_VERSION_STR', '6.8.0'),
+            ('checkpoint.core.snapshot.Qgis', SimpleNamespace(QGIS_VERSION_INT=34000, QGIS_VERSION='3.40.0')),
+            ('checkpoint.core.snapshot.Qgis', SimpleNamespace(QGIS_VERSION_INT=40300, QGIS_VERSION='4.3.0-Master')),
+            ('checkpoint.core.snapshot.Qgis', SimpleNamespace(QGIS_VERSION_INT=40400, QGIS_VERSION='4.4.0')),
+            ('checkpoint.core.snapshot.QT_VERSION_STR', '7.0.0'),
         ):
             roads.setOpacity(.42)
             p.setDirty(False)
@@ -101,7 +102,7 @@ def run():
                 try:
                     restore(p, c, original)
                 except SnapshotError as exc:
-                    assert 'requires QGIS 3.44' in str(exc)
+                    assert 'requires a stable QGIS 3.44' in str(exc)
                 else:
                     raise AssertionError('Unsupported runtime was allowed to apply styling')
             assert roads.opacity() == .42 and not p.isDirty()

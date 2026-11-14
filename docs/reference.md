@@ -148,6 +148,9 @@ strings have translation boundaries; English is the only distributed language.
 Native group serialization and exclusivity APIs were compared across the official
 3.28, 3.40 and [QGIS 3.44 API](https://api.qgis.org/api/3.44/classQgsLayerTreeGroup.html).
 Group server properties and WMS time-dimension methods were introduced in 3.44.
-The minimum version is therefore QGIS 3.44, with Qt5; earlier versions and
-Qt6/QGIS4 are refused before capture or application.
-Execution checks used QGIS 3.44.8 only. See [validation](validation-0.2.0.md).
+The minimum version is therefore QGIS 3.44. The release targets are stable QGIS
+3.44 / Qt5 and QGIS 4.0, 4.2 / Qt6. Older, development and newer unvalidated
+release lines are refused before capture or application. See
+[compatibility](compatibility.md) for actual verification status.
+The 0.2.0 report records the original QGIS 3.44.8 checks. Current release-line
+coverage and revision-specific evidence are in the compatibility report above.

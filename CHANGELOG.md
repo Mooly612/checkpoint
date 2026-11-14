@@ -1,3 +1,31 @@
+## 0.3.1
+
+- Stop serializing every layer's style on map pan/zoom; refresh application
+  details on styling and CRS changes and on checkpoint selection.
+- Re-enable Apply after a transient details error, and cancel/ignore details
+  refreshes while project loading or Save As has paused history.
+- Reject unsupported runtimes before adopting group identities; recognize
+  attached RC suffixes, nightly/pre builds and inconsistent version metadata.
+- Keep retention settings and Undo unchanged when a database refresh fails.
+- Reject misspelled native scenarios and malformed archives; replace stale
+  successful reports and record failures before a run can claim success.
+- Isolate the selected macOS bundle from foreign Qt/PROJ environment paths and
+  avoid selecting python-config executables as Python interpreters.
+- Keep the agreed QGIS/Qt matrix and history schemas unchanged. Add native
+  regressions on that matrix and cancel superseded CI runs for the same PR.
+
+## 0.3.0
+
+- One package targets stable QGIS 3.44 / Qt5 and QGIS 4.0, 4.2 / Qt6.
+- Replace the Qt5-only runtime gate with explicit release/Qt pairs; reject
+  prereleases and newer unvalidated release lines before capture or application.
+- Run Python/storage/package checks on macOS, Windows and Linux in GitHub Actions.
+- Configure native QGIS jobs using official Windows installers, Linux images and
+  macOS bundles; record runtime versions and passed scenarios as JSON artifacts.
+- Discover the selected macOS bundle instead of injecting a hard-coded QGIS.app.
+- Retain the existing history schema and experimental plugin status. Actual
+  platform verification is documented separately from compatibility targets.
+
 ## 0.2.3
 
 - Reject XML entities and external references with bundled defusedxml 0.7.1.

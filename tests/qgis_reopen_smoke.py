@@ -17,8 +17,9 @@ def child(source, demo, history):
     with TemporaryDirectory(prefix='checkpoint-reopen-profile-') as profile:
         os.environ['QGIS_CUSTOM_CONFIG_PATH'] = profile
         app = QgsApplication([], True, profile)
-        mac = Path('/Applications/QGIS.app/Contents')
-        if mac.exists():
+        mac = next((p for p in Path(sys.executable).absolute().parents
+                    if p.name == 'Contents' and p.parent.suffix == '.app'), None)
+        if mac is not None:
             app.setPrefixPath(str(mac / 'MacOS'), True)
             app.setPluginPath(str(mac / 'PlugIns/qgis'))
             app.setPkgDataPath(str(mac / 'Resources/qgis'))
