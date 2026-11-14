@@ -152,4 +152,5 @@ The minimum version is therefore QGIS 3.44. The release targets are stable QGIS
 3.44 / Qt5 and QGIS 4.0, 4.2 / Qt6. Older, development and newer unvalidated
 release lines are refused before capture or application. See
 [compatibility](compatibility.md) for actual verification status.
-Execution checks used QGIS 3.44.8 only. See [validation](validation-0.2.0.md).
+The 0.2.0 report records the original QGIS 3.44.8 checks. Current release-line
+coverage and revision-specific evidence are in the compatibility report above.

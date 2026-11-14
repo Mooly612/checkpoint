@@ -30,3 +30,19 @@ def test_released_targets(number, version, qt):
 ])
 def test_unsupported_and_prerelease_targets(number, version, qt):
     assert not supported_runtime(number, version, qt)
+
+
+@pytest.mark.parametrize("suffix", ["rc1", "-RC.1", "-nightly", "-pre1", ".dev0", "-development", "+preview"])
+def test_prerelease_suffixes_on_an_approved_line(suffix):
+    assert not supported_runtime(40200, "4.2.0" + suffix, "6.11.0")
+
+
+@pytest.mark.parametrize("number,version,qt", [
+    (40203, "4.4.3", "6.11.0"),
+    (40203, "", "6.11.0"),
+    ("40203", "4.2.3", "6.11.0"),
+    (40203, None, "6.11.0"),
+    (40203, "4.2.3", None),
+])
+def test_inconsistent_runtime_metadata_is_rejected(number, version, qt):
+    assert not supported_runtime(number, version, qt)

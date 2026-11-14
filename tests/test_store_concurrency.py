@@ -188,3 +188,27 @@ def test_failed_refresh_does_not_cache_an_invalid_revision(tmp_path, state):
         with pytest.raises(HistoryError):
             store.refresh()
         assert store.records == [record]
+
+
+def test_failed_refresh_preserves_retention_and_undo(tmp_path, state):
+    store = HistoryStore(tmp_path, '/map.qgz', limit=7)
+    recovery = store.append_restore(state, before=True, operation='apply')
+    before = store.records
+    with sqlite3.connect(store.path) as db:
+        db.execute("UPDATE settings SET value='999' WHERE key='revision'")
+        db.execute("UPDATE settings SET value='1' WHERE key='limit'")
+        db.execute("UPDATE settings SET value='missing' WHERE key='undo_head'")
+        db.execute("UPDATE records SET payload='{}'")
+    for _ in range(2):
+        with pytest.raises(HistoryError):
+            store.refresh()
+        assert store.records == before
+        assert store.limit == 7
+        assert store.undo_target() == recovery['id']
+
+    # Repair is observed on retry, without reopening the store or losing Undo.
+    with sqlite3.connect(store.path) as db:
+        db.execute("UPDATE records SET payload=?", (json.dumps(recovery),))
+        db.execute("UPDATE settings SET value=? WHERE key='undo_head'", (recovery['id'],))
+    store.refresh()
+    assert store.limit == 1 and store.undo_target() == recovery['id']

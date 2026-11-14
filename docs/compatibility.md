@@ -1,4 +1,4 @@
-# Checkpoint 0.3.0 compatibility
+# Checkpoint 0.3.1 compatibility
 
 One pure-Python ZIP targets macOS, Windows and Linux. It uses the Qt binding
 provided by QGIS through `qgis.PyQt`; QGIS, Qt and Python are not included in it.
@@ -13,7 +13,27 @@ lines. Metadata caps discovery at 4.2.99; patch 99 is still rejected at runtime.
 The range shown by the QGIS Plugin Manager cannot express all these exclusions.
 Future releases require native verification and an explicit policy update.
 
-## Verification status
+## 0.3.1 validation
+
+The 0.3.1 changes retain the same release targets and add a twelfth native
+scenario for transient errors, paused Save As sessions, Unicode paths and
+navigation overhead. Each new PR runs the complete matrix again; the successful
+0.3.0 run below is baseline evidence, not a substitute for testing new code.
+
+Local validation on 2026-11-14: 105 pure-Python tests and Bandit passed, along
+with all 12 native scenarios from the built ZIP on macOS 27 arm64 / QGIS 3.44.8 /
+Qt 5.15.18 / bundled Python 3.12.11 (exit 0). Hosted 0.3.1 results are pending;
+consult the new PR's Checkpoint checks run for the tested revision and artifacts.
+The release ZIP is approximately 1.3 MB and contains no QGIS/Qt runtimes.
+
+The runner rejects unknown `--only` scenarios, disabled Python assertions and invalid package members before
+loading QGIS. Reports start with `passed=false`, name the requested and completed
+scenarios, and become successful only after QGIS teardown and profile cleanup.
+The process must also exit with code 0. Native jobs build `dist/checkpoint.zip`
+from the checked-out metadata, so changing the plugin version cannot leave CI
+testing a hard-coded older archive name.
+
+## 0.3.0 baseline verification
 
 The table records completed execution, not just intended compatibility.
 
@@ -68,7 +88,7 @@ when moving between major versions.
 ```sh
 python3 scripts/package.py
 python3 scripts/run_qgis_macos.py --app /Applications/QGIS.app \
-  --package dist/checkpoint-0.3.0.zip --expected-qgis 3.44 \
+  --package dist/checkpoint-0.3.1.zip --expected-qgis 3.44 \
   --report dist/reports/macos-3.44.json
 ```
 

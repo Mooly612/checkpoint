@@ -1,14 +1,16 @@
-# Install Checkpoint 0.3.0
+# Install Checkpoint 0.3.1
 
 ## From the prepared ZIP
 
-The local artifact is `dist/checkpoint-0.3.0.zip`. Its checksum is in
-`dist/checkpoint-0.3.0.zip.sha256`. No hosted release download is available.
-From the `dist` directory, verify with `shasum -a 256 -c checkpoint-0.3.0.zip.sha256`
-on macOS, or `sha256sum -c checkpoint-0.3.0.zip.sha256` on Linux.
+The local artifact is `dist/checkpoint-0.3.1.zip`. Its checksum is in
+`dist/checkpoint-0.3.1.zip.sha256`. No hosted release download is available.
+From the `dist` directory, verify with `shasum -a 256 -c checkpoint-0.3.1.zip.sha256`
+on macOS, or `sha256sum -c checkpoint-0.3.1.zip.sha256` on Linux.
+On Windows PowerShell, run `Get-FileHash .\checkpoint-0.3.1.zip -Algorithm SHA256`
+and compare the hash with the first field of the `.sha256` file.
 
 1. Open **Plugins → Manage and Install Plugins → Install from ZIP** in QGIS.
-2. Choose `checkpoint-0.3.0.zip` and install. Enable Checkpoint under Installed.
+2. Choose `checkpoint-0.3.1.zip` and install. Enable Checkpoint under Installed.
 3. Restart QGIS after replacing an existing version.
 4. Open a project and confirm the starting checkpoint/status before editing.
 5. Change two layers, select the starting point, read its inline scope, click
@@ -57,14 +59,14 @@ python3 -m venv .venv
 .venv/bin/python -m pytest -q
 python3 scripts/package.py
 # Use the Python interpreter supplied by a working QGIS installation:
-python3 scripts/run_qgis_checks.py --package dist/checkpoint-0.3.0.zip
+python3 scripts/run_qgis_checks.py --package dist/checkpoint-0.3.1.zip
 ```
 
 For macOS, use the Python bundled with the selected QGIS application:
 
 ```sh
 python3 scripts/run_qgis_macos.py --app /Applications/QGIS.app \
-  --package dist/checkpoint-0.3.0.zip --expected-qgis 3.44 \
+  --package dist/checkpoint-0.3.1.zip --expected-qgis 3.44 \
   --report dist/reports/macos-3.44.json
 ```
 

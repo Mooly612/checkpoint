@@ -26,15 +26,15 @@ checkpoint and applies a snapshot across existing layers.
 
 ## Install and try it
 
-This is **0.3.0, an experimental compatibility build**. One package targets
+This is **0.3.1, an experimental compatibility build**. One package targets
 stable **QGIS 3.44 / Qt5 and QGIS 4.0, 4.2 / Qt6**, on macOS, Windows and Linux.
 Development builds and newer unvalidated release lines are refused. See the
 [compatibility report](docs/compatibility.md) for actual verification status.
-The prepared artifact is `dist/checkpoint-0.3.0.zip`, with a `.zip.sha256` sidecar.
+The prepared artifact is `dist/checkpoint-0.3.1.zip`, with a `.zip.sha256` sidecar.
 To build it from this checkout, run `python3 scripts/package.py`.
 
 1. In QGIS, open **Plugins → Manage and Install Plugins → Install from ZIP** and
-   choose `checkpoint-0.3.0.zip`. Enable Checkpoint. Restart QGIS after updating.
+   choose `checkpoint-0.3.1.zip`. Enable Checkpoint. Restart QGIS after updating.
 2. Open a project. Checkpoint creates a starting point after loading completes.
    Check the panel status before editing. An empty project waits for its layers.
 3. Change the appearance of two layers. **Auto** saves after a 2-second pause in
@@ -94,7 +94,7 @@ an existing destination history is never silently merged or overwritten.
 Moving the file outside QGIS does not move its history. Sending a `.qgz` to someone
 else does not send the history. **History… → Export history…** saves a JSON archive
 for inspection/archival. Import and automatic remapping across projects are not
-supported in 0.2.1; names alone cannot safely identify layers. Use Save As inside
+supported in this version; names alone cannot safely identify layers. Use Save As inside
 QGIS to continue a history at a new path.
 
 ## Limits and compatibility
