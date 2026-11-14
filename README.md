@@ -10,7 +10,7 @@ Click the preview to watch the demo on YouTube.
          width="640">
   </a>
 </p>
-[▶ Watch the video on YouTube](https://www.youtube.com/watch?v=CVITs8cSiHo&t=8s)
+Watch the video on YouTube (https://www.youtube.com/watch?v=CVITs8cSiHo&t=8s)
 
 
 Local styling history for QGIS users who experiment with the appearance of several
